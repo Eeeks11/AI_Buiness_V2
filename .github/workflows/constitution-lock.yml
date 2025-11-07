@@ -1,0 +1,56 @@
+name: Constitution Lock
+
+on:
+  pull_request:
+    paths:
+      - 'constitution.md'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'constitution.md'
+
+jobs:
+  protect-constitution:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to compare changes
+
+      - name: Detect constitution.md changes
+        id: detect-changes
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # For PRs, check if constitution.md was modified
+            if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep -q "constitution.md"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "::error::Constitution modification detected in PR"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # For pushes, check if constitution.md was modified in the last commit
+            if git diff --name-only HEAD~1 HEAD | grep -q "constitution.md"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "::error::Constitution modification detected in push"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Block constitution modification
+        if: steps.detect-changes.outputs.changed == 'true'
+        run: |
+          echo "::error::Rule 3 Violation: The Constitution cannot be altered or amended under any circumstance."
+          echo "::error::This change violates the Immutable Constitution rule."
+          echo "::error::Only the Owner may modify the Constitution through a formal Constitutional Proposal."
+          exit 1
+
+      - name: Constitution protected
+        if: steps.detect-changes.outputs.changed == 'false'
+        run: |
+          echo "✓ Constitution.md is protected and unchanged."
+

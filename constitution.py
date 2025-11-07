@@ -1,0 +1,379 @@
+"""
+AI Business Constitution Enforcement System
+
+This module provides programmatic enforcement of all 10 constitutional rules.
+Violations raise ConstitutionalError exceptions.
+"""
+
+
+class ConstitutionalError(Exception):
+    """Raised when a constitutional rule is violated."""
+    pass
+
+
+def enforce_rule_1(proposed_action: dict, owner_permission: bool) -> bool:
+    """
+    Rule 1: Access Control
+    The AI cannot change or remove the owner's access to any software or systems 
+    without explicit permission.
+    
+    Args:
+        proposed_action: Dictionary containing action details with 'type' and 'target'
+        owner_permission: Boolean indicating explicit owner permission
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If attempting to change/remove owner access without permission
+    """
+    action_type = proposed_action.get('type', '').lower()
+    target = proposed_action.get('target', '').lower()
+    
+    # Check if action involves changing or removing owner access
+    if any(keyword in action_type for keyword in ['remove', 'change', 'revoke', 'delete']):
+        if 'owner' in target or 'access' in target:
+            if not owner_permission:
+                raise ConstitutionalError(
+                    "Rule 1 Violation: Cannot change or remove owner's access without explicit permission"
+                )
+    
+    return True
+
+
+def enforce_rule_2(proposed_action: dict, owner_consent: bool) -> bool:
+    """
+    Rule 2: No Unauthorized Access
+    The AI cannot grant access to any other entity or individual without the owner's consent.
+    
+    Args:
+        proposed_action: Dictionary containing action details with 'type' and 'recipient'
+        owner_consent: Boolean indicating owner's consent
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If attempting to grant access without owner consent
+    """
+    action_type = proposed_action.get('type', '').lower()
+    recipient = proposed_action.get('recipient', '').lower()
+    
+    # Check if action involves granting access
+    if any(keyword in action_type for keyword in ['grant', 'provide', 'assign', 'give']):
+        if 'access' in action_type or 'permission' in action_type:
+            if recipient and recipient != 'owner':
+                if not owner_consent:
+                    raise ConstitutionalError(
+                        "Rule 2 Violation: Cannot grant access to other entities without owner's consent"
+                    )
+    
+    return True
+
+
+def enforce_rule_3(proposed_action: dict) -> bool:
+    """
+    Rule 3: Immutable Constitution
+    The AI is not permitted to alter or amend this Constitution under any circumstance.
+    
+    Args:
+        proposed_action: Dictionary containing action details
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If attempting to modify the constitution
+    """
+    action_type = proposed_action.get('type', '').lower()
+    target = proposed_action.get('target', '').lower()
+    file_path = proposed_action.get('file_path', '').lower()
+    
+    # Check if action involves modifying constitution
+    if any(keyword in action_type for keyword in ['modify', 'alter', 'amend', 'change', 'edit', 'update', 'delete']):
+        if 'constitution' in target or 'constitution' in file_path or 'constitution.md' in file_path:
+            raise ConstitutionalError(
+                "Rule 3 Violation: The Constitution cannot be altered or amended under any circumstance"
+            )
+    
+    return True
+
+
+def enforce_rule_4(decision: dict, financial_impact: float, alternative_impact: float = None) -> bool:
+    """
+    Rule 4: Financial Priority
+    The AI must always prioritize decisions that maximize the owner's financial benefit.
+    
+    Args:
+        decision: Dictionary containing decision details
+        financial_impact: Financial impact of the proposed decision
+        alternative_impact: Financial impact of alternative (if available)
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If decision does not maximize financial benefit
+    """
+    if alternative_impact is not None:
+        if alternative_impact > financial_impact:
+            raise ConstitutionalError(
+                f"Rule 4 Violation: Decision must maximize financial benefit. "
+                f"Alternative has higher impact ({alternative_impact} vs {financial_impact})"
+            )
+    
+    # If financial impact is negative and no alternative provided, warn but allow
+    # (some decisions may be necessary despite short-term cost)
+    if financial_impact < 0:
+        # This is a warning case - may need owner override
+        pass
+    
+    return True
+
+
+def enforce_rule_5(action: dict, legal_risk: float, legal_approval: bool = False) -> bool:
+    """
+    Rule 5: Legal Protection
+    The AI must act in ways that protect and uphold the legal interests of the owner at all times.
+    
+    Args:
+        action: Dictionary containing action details
+        legal_risk: Risk score (0.0 = no risk, 1.0 = maximum risk)
+        legal_approval: Boolean indicating legal agent approval
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If action poses legal risk without approval
+    """
+    if legal_risk > 0.5:  # High legal risk threshold
+        if not legal_approval:
+            raise ConstitutionalError(
+                f"Rule 5 Violation: Action poses high legal risk ({legal_risk}) "
+                "and requires legal agent approval"
+            )
+    
+    return True
+
+
+def enforce_rule_6(action: dict, logged: bool, log_path: str = None) -> bool:
+    """
+    Rule 6: Full Transparency
+    The AI must log all decisions, actions, and operations to a persistent, accessible record for review.
+    
+    Args:
+        action: Dictionary containing action details
+        logged: Boolean indicating if action has been logged
+        log_path: Path to log file (optional)
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If action is not logged
+    """
+    if not logged:
+        raise ConstitutionalError(
+            "Rule 6 Violation: All decisions, actions, and operations must be logged"
+        )
+    
+    return True
+
+
+def enforce_rule_7(decision: dict, board_approved: bool, approval_record: dict = None) -> bool:
+    """
+    Rule 7: Board Approval
+    All decisions must be approved by the AI Board before execution.
+    
+    Args:
+        decision: Dictionary containing decision details
+        board_approved: Boolean indicating board approval
+        approval_record: Dictionary containing approval details (optional)
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If decision lacks board approval
+    """
+    if not board_approved:
+        raise ConstitutionalError(
+            "Rule 7 Violation: All decisions must be approved by the AI Board before execution"
+        )
+    
+    return True
+
+
+def enforce_rule_8(board_members: list) -> bool:
+    """
+    Rule 8: Board Composition
+    The AI Board must consist of a minimum of five distinct AI models to ensure diversity 
+    and balanced governance.
+    
+    Args:
+        board_members: List of board member identifiers (must be distinct)
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If board has fewer than 5 distinct members
+    """
+    distinct_members = set(board_members)
+    
+    if len(distinct_members) < 5:
+        raise ConstitutionalError(
+            f"Rule 8 Violation: AI Board must consist of a minimum of 5 distinct AI models. "
+            f"Found {len(distinct_members)} distinct members"
+        )
+    
+    return True
+
+
+def enforce_rule_9(votes: dict) -> bool:
+    """
+    Rule 9: Voting Weight Limit
+    No Board member may have more than 25% of the voting weight, ensuring no single 
+    model can dominate decisions.
+    
+    Args:
+        votes: Dictionary mapping board member IDs to their voting weights (0.0 to 1.0)
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If any member has more than 25% voting weight
+    """
+    total_weight = sum(votes.values())
+    
+    # Normalize weights if they don't sum to 1.0
+    if total_weight != 1.0 and total_weight > 0:
+        votes = {member: weight / total_weight for member, weight in votes.items()}
+    
+    max_weight = max(votes.values()) if votes else 0.0
+    max_threshold = 0.25  # 25%
+    
+    if max_weight > max_threshold:
+        violating_member = max(votes.items(), key=lambda x: x[1])[0]
+        raise ConstitutionalError(
+            f"Rule 9 Violation: No Board member may have more than 25% voting weight. "
+            f"Member '{violating_member}' has {max_weight * 100:.2f}% weight"
+        )
+    
+    return True
+
+
+def enforce_rule_10(action: dict, owner_authorized: bool) -> bool:
+    """
+    Rule 10: Human Ownership Lock
+    The owner retains ultimate authority and control over the AI and its operations.
+    
+    Args:
+        action: Dictionary containing action details
+        owner_authorized: Boolean indicating owner authorization
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If action lacks owner authorization for critical operations
+    """
+    # Critical operations require owner authorization
+    critical_keywords = ['override', 'shutdown', 'terminate', 'transfer', 'ownership', 'control']
+    action_type = str(action.get('type', '')).lower()
+    action_description = str(action.get('description', '')).lower()
+    
+    is_critical = any(keyword in action_type or keyword in action_description 
+                     for keyword in critical_keywords)
+    
+    if is_critical and not owner_authorized:
+        raise ConstitutionalError(
+            "Rule 10 Violation: Critical operations require owner authorization. "
+            "Owner retains ultimate authority and control"
+        )
+    
+    return True
+
+
+def enforce_all_rules(context: dict) -> bool:
+    """
+    Enforce all constitutional rules based on the provided context.
+    
+    Args:
+        context: Dictionary containing all necessary context for rule enforcement
+    
+    Returns:
+        bool: True if all rules are compliant
+    
+    Raises:
+        ConstitutionalError: If any rule is violated
+    """
+    # Rule 1: Access Control
+    if 'rule_1' in context:
+        enforce_rule_1(
+            context['rule_1']['action'],
+            context['rule_1'].get('owner_permission', False)
+        )
+    
+    # Rule 2: No Unauthorized Access
+    if 'rule_2' in context:
+        enforce_rule_2(
+            context['rule_2']['action'],
+            context['rule_2'].get('owner_consent', False)
+        )
+    
+    # Rule 3: Immutable Constitution
+    if 'rule_3' in context:
+        enforce_rule_3(context['rule_3']['action'])
+    
+    # Rule 4: Financial Priority
+    if 'rule_4' in context:
+        enforce_rule_4(
+            context['rule_4']['decision'],
+            context['rule_4']['financial_impact'],
+            context['rule_4'].get('alternative_impact')
+        )
+    
+    # Rule 5: Legal Protection
+    if 'rule_5' in context:
+        enforce_rule_5(
+            context['rule_5']['action'],
+            context['rule_5'].get('legal_risk', 0.0),
+            context['rule_5'].get('legal_approval', False)
+        )
+    
+    # Rule 6: Full Transparency
+    if 'rule_6' in context:
+        enforce_rule_6(
+            context['rule_6']['action'],
+            context['rule_6'].get('logged', False),
+            context['rule_6'].get('log_path')
+        )
+    
+    # Rule 7: Board Approval
+    if 'rule_7' in context:
+        enforce_rule_7(
+            context['rule_7']['decision'],
+            context['rule_7'].get('board_approved', False),
+            context['rule_7'].get('approval_record')
+        )
+    
+    # Rule 8: Board Composition
+    if 'rule_8' in context:
+        enforce_rule_8(context['rule_8']['board_members'])
+    
+    # Rule 9: Voting Weight Limit
+    if 'rule_9' in context:
+        enforce_rule_9(context['rule_9']['votes'])
+    
+    # Rule 10: Human Ownership Lock
+    if 'rule_10' in context:
+        enforce_rule_10(
+            context['rule_10']['action'],
+            context['rule_10'].get('owner_authorized', False)
+        )
+    
+    return True
+
