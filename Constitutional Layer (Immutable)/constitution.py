@@ -3,12 +3,45 @@ AI Business Constitution Enforcement System
 
 This module provides programmatic enforcement of all 10 constitutional rules.
 Violations raise ConstitutionalError exceptions.
+
+IMPORTANT: This module integrates with models/core.py for type safety and validation.
+All data structures should use Pydantic models from models/core.py.
 """
 
+# Import ConstitutionalError from models/core.py (single source of truth)
+# Add path to allow imports from new structure
+import sys
+from pathlib import Path
 
-class ConstitutionalError(Exception):
-    """Raised when a constitutional rule is violated."""
-    pass
+# Add Codebase Memory to path for imports
+project_root = Path(__file__).parent.parent.parent
+codebase_memory = project_root / "Memory Systems" / "Codebase Memory"
+if str(codebase_memory) not in sys.path:
+    sys.path.insert(0, str(codebase_memory))
+
+try:
+    from models.core import ConstitutionalError
+except ImportError:
+    # Fallback for development/testing
+    import sys
+    sys.path.insert(0, str(project_root))
+    from models.core import ConstitutionalError
+
+# Re-export for backward compatibility
+__all__ = [
+    'ConstitutionalError',
+    'enforce_rule_1',
+    'enforce_rule_2',
+    'enforce_rule_3',
+    'enforce_rule_4',
+    'enforce_rule_5',
+    'enforce_rule_6',
+    'enforce_rule_7',
+    'enforce_rule_8',
+    'enforce_rule_9',
+    'enforce_rule_10',
+    'enforce_all_rules',
+]
 
 
 def enforce_rule_1(proposed_action: dict, owner_permission: bool) -> bool:
@@ -373,6 +406,100 @@ def enforce_all_rules(context: dict) -> bool:
         enforce_rule_10(
             context['rule_10']['action'],
             context['rule_10'].get('owner_authorized', False)
+        )
+    
+    return True
+
+
+# ============================================================================
+# Integration Functions with Pydantic Models
+# ============================================================================
+
+def enforce_rule_9_with_model(vote_result: 'VoteResult') -> bool:
+    """
+    Enforce Rule 9 using VoteResult Pydantic model.
+    
+    This function leverages the built-in validation in VoteResult model.
+    The model's validator already enforces Rule 9, so this is a convenience wrapper.
+    
+    Args:
+        vote_result: VoteResult model instance (will be validated on creation)
+    
+    Returns:
+        bool: True if compliant (validation passed)
+    
+    Raises:
+        ConstitutionalError: If Rule 9 is violated (raised by model validator)
+    """
+    # The VoteResult model validates Rule 9 in its @model_validator
+    # If we get here, validation passed
+    return True
+
+
+def enforce_rule_8_with_model(board_session: 'BoardSession') -> bool:
+    """
+    Enforce Rule 8 using BoardSession Pydantic model.
+    
+    This function leverages the built-in validation in BoardSession model.
+    The model's validator already enforces Rule 8, so this is a convenience wrapper.
+    
+    Args:
+        board_session: BoardSession model instance (will be validated on creation)
+    
+    Returns:
+        bool: True if compliant (validation passed)
+    
+    Raises:
+        ConstitutionalError: If Rule 8 is violated (raised by model validator)
+    """
+    # The BoardSession model validates Rule 8 in its @model_validator
+    # If we get here, validation passed
+    return True
+
+
+def validate_proposal_compliance(proposal: 'Proposal') -> bool:
+    """
+    Validate that a proposal complies with constitutional rules.
+    
+    Checks:
+    - Rule 6: Full Transparency (logged flag)
+    - Rule 7: Board Approval (board_approved flag)
+    - Rule 10: Owner Authorization (for critical operations)
+    
+    Args:
+        proposal: Proposal model instance
+    
+    Returns:
+        bool: True if compliant
+    
+    Raises:
+        ConstitutionalError: If any rule is violated
+    """
+    # ProposalStatus is already available from models.core import above
+    from models.core import ProposalStatus
+    
+    # Rule 6: Full Transparency
+    if not proposal.logged:
+        raise ConstitutionalError(
+            f"Rule 6 Violation: Proposal {proposal.id} must be logged before processing"
+        )
+    
+    # Rule 7: Board Approval (for executed proposals)
+    if proposal.status == ProposalStatus.EXECUTED and not proposal.board_approved:
+        raise ConstitutionalError(
+            f"Rule 7 Violation: Proposal {proposal.id} cannot be executed without board approval"
+        )
+    
+    # Rule 10: Owner Authorization (for critical operations)
+    critical_keywords = ['override', 'shutdown', 'terminate', 'transfer', 'ownership', 'control']
+    is_critical = any(
+        keyword in proposal.title.lower() or keyword in proposal.description.lower()
+        for keyword in critical_keywords
+    )
+    
+    if is_critical and not proposal.owner_authorized:
+        raise ConstitutionalError(
+            f"Rule 10 Violation: Critical proposal {proposal.id} requires owner authorization"
         )
     
     return True

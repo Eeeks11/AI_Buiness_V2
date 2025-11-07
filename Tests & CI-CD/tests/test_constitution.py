@@ -4,7 +4,20 @@ Pytest unit tests for AI Business Constitution enforcement.
 Tests prove each rule works correctly and blocks violations.
 """
 
+import sys
+from pathlib import Path
 import pytest
+
+# Add paths for imports
+project_root = Path(__file__).parent.parent.parent
+constitutional_layer = project_root / "Constitutional Layer (Immutable)"
+codebase_memory = project_root / "Memory Systems" / "Codebase Memory"
+
+if str(constitutional_layer) not in sys.path:
+    sys.path.insert(0, str(constitutional_layer))
+if str(codebase_memory) not in sys.path:
+    sys.path.insert(0, str(codebase_memory))
+
 from constitution import (
     ConstitutionalError,
     enforce_rule_1,
