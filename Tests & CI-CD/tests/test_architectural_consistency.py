@@ -342,7 +342,7 @@ class TestConstitutionFileExists:
     def test_coding_constitution_exists(self):
         """Test that CODING_CONSTITUTION.md file exists."""
         assert CODING_CONSTITUTION_PATH.exists(), (
-            "CODING_CONSTITUTION.md must exist in project root"
+            "CODING_CONSTITUTION.md must exist in Constitutional Layer (Immutable)/"
         )
     
     def test_coding_constitution_has_rules(self):

@@ -89,7 +89,7 @@ CODING_CONSTITUTION_PATH = PROJECT_ROOT / "Constitutional Layer (Immutable)" / "
 ### ✅ GitHub Workflow → Updated Paths
 **File:** `Tests & CI-CD/.github/workflows/constitution-lock.yml`
 - Checks: `Memory Systems/Codebase Memory/models/core.py`
-- Checks: `Constitutional Layer (Immutable)/CODING_CONSTITUTION.md`
+- Checks: `Constitutional Layer (Immutable)/CODING_CONSTITUTION.md` ✅ (Single source of truth)
 - Protects: `Constitutional Layer (Immutable)/constitution.md`
 - Protects: `Constitutional Layer (Immutable)/constitution.py`
 - Protects: `Constitutional Layer (Immutable)/CODING_CONSTITUTION.md`
@@ -126,4 +126,5 @@ CODING_CONSTITUTION_PATH = PROJECT_ROOT / "Constitutional Layer (Immutable)" / "
 5. ⏳ Implement Audit & Compliance modules
 
 All foundational files are in place and properly linked!
+
 

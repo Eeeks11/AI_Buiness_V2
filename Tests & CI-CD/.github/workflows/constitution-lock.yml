@@ -3,22 +3,18 @@ name: Constitution Lock & Architectural Consistency
 on:
   pull_request:
     paths:
-      - 'constitution.md'
-      - 'constitution.py'
-      - 'CODING_CONSTITUTION.md'
-      - 'models/**'
-      - 'tests/**'
+      - 'Constitutional Layer (Immutable)/**'
+      - 'Memory Systems/Codebase Memory/**'
+      - 'Tests & CI-CD/**'
       - '*.py'
   push:
     branches:
       - main
       - master
     paths:
-      - 'constitution.md'
-      - 'constitution.py'
-      - 'CODING_CONSTITUTION.md'
-      - 'models/**'
-      - 'tests/**'
+      - 'Constitutional Layer (Immutable)/**'
+      - 'Memory Systems/Codebase Memory/**'
+      - 'Tests & CI-CD/**'
       - '*.py'
 
 jobs:
