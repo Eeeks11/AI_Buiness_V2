@@ -36,6 +36,9 @@ REQUIRED_MODELS = {
     "BoardSession",
     "BoardMember",
     "ConstitutionalError",
+    "ConstitutionalRule",
+    "ConstitutionalValidation",
+    "APIResponse",
 }
 
 
@@ -333,6 +336,122 @@ class TestLogging:
         if violations:
             print(f"Warning: Found {len(violations)} files without logging imports:")
             for violation in violations[:5]:
+                print(f"  - {violation}")
+    
+    def test_logging_pattern_consistency(self):
+        """Test that logging follows consistent patterns."""
+        python_files = get_python_files(PROJECT_ROOT)
+        main_files = [
+            f for f in python_files 
+            if "test_" not in str(f) and "constitution.py" in str(f)
+        ]
+        
+        violations = []
+        
+        for file_path in main_files:
+            try:
+                content = file_path.read_text()
+                tree = parse_file(file_path)
+                
+                # Check for logger initialization pattern
+                has_logger = "logging.getLogger(__name__)" in content or "logger = " in content
+                
+                if has_logger:
+                    # Check that errors are logged before raising
+                    functions = get_function_definitions(tree)
+                    for func in functions:
+                        func_content = ast.get_source_segment(content, func) or ""
+                        # Check if ConstitutionalError is raised
+                        if "ConstitutionalError" in func_content:
+                            # Should have logging before raise
+                            if "raise ConstitutionalError" in func_content:
+                                # Check if there's logging before the raise
+                                raise_idx = func_content.find("raise ConstitutionalError")
+                                before_raise = func_content[:raise_idx]
+                                if "logger." not in before_raise and "logging." not in before_raise:
+                                    violations.append(
+                                        f"{file_path.relative_to(PROJECT_ROOT)}: "
+                                        f"Function '{func.name}' raises ConstitutionalError without logging"
+                                    )
+            except (SyntaxError, AttributeError):
+                pass
+        
+        # Warning for now
+        if violations:
+            print(f"Warning: Found {len(violations)} potential logging violations:")
+            for violation in violations[:5]:
+                print(f"  - {violation}")
+
+
+class TestNamingConventions:
+    """Test naming convention compliance"""
+    
+    def test_class_names_pascal_case(self):
+        """Test that class names use PascalCase."""
+        python_files = get_python_files(PROJECT_ROOT)
+        violations = []
+        
+        for file_path in python_files:
+            if "test_" in str(file_path):
+                continue
+            
+            try:
+                tree = parse_file(file_path)
+                classes = get_class_definitions(tree)
+                
+                for class_name in classes:
+                    # Check PascalCase (starts with uppercase, no underscores for main words)
+                    if not class_name[0].isupper():
+                        violations.append(
+                            f"{file_path.relative_to(PROJECT_ROOT)}: "
+                            f"Class '{class_name}' doesn't start with uppercase"
+                        )
+                    # Allow underscores for compound names but check pattern
+                    if "_" in class_name and not all(word[0].isupper() for word in class_name.split("_") if word):
+                        # This is a warning, not an error
+                        pass
+            except SyntaxError:
+                pass
+        
+        # Report violations
+        if violations:
+            print(f"Warning: Found {len(violations)} naming convention issues:")
+            for violation in violations[:10]:
+                print(f"  - {violation}")
+    
+    def test_function_names_snake_case(self):
+        """Test that function names use snake_case."""
+        python_files = get_python_files(PROJECT_ROOT)
+        violations = []
+        
+        for file_path in python_files:
+            if "test_" in str(file_path):
+                continue
+            
+            try:
+                tree = parse_file(file_path)
+                functions = get_function_definitions(tree)
+                
+                for func in functions:
+                    # Skip private functions
+                    if func.name.startswith("_"):
+                        continue
+                    
+                    # Check snake_case
+                    if not func.name.islower() and "_" not in func.name:
+                        # Might be a constant or class method, check context
+                        if not func.name.isupper():  # Not a constant
+                            violations.append(
+                                f"{file_path.relative_to(PROJECT_ROOT)}: "
+                                f"Function '{func.name}' doesn't follow snake_case"
+                            )
+            except SyntaxError:
+                pass
+        
+        # Warning for now
+        if violations:
+            print(f"Warning: Found {len(violations)} function naming issues:")
+            for violation in violations[:10]:
                 print(f"  - {violation}")
 
 

@@ -41,6 +41,10 @@ __all__ = [
     'enforce_rule_9',
     'enforce_rule_10',
     'enforce_all_rules',
+    'enforce_rule_8_with_model',
+    'enforce_rule_9_with_model',
+    'validate_proposal_compliance',
+    'validate_constitutional_compliance',
 ]
 
 
@@ -503,4 +507,210 @@ def validate_proposal_compliance(proposal: 'Proposal') -> bool:
         )
     
     return True
+
+
+def validate_constitutional_compliance(
+    proposal: 'Proposal | None' = None,
+    board_session: 'BoardSession | None' = None,
+    vote_result: 'VoteResult | None' = None,
+    action: dict | None = None,
+    context: dict | None = None
+) -> 'ConstitutionalValidation':
+    """
+    Master function to validate constitutional compliance across all rules.
+    
+    This is the primary entry point for constitutional validation. It checks
+    all applicable rules based on the provided entities and returns a comprehensive
+    validation result.
+    
+    Args:
+        proposal: Optional Proposal to validate
+        board_session: Optional BoardSession to validate
+        vote_result: Optional VoteResult to validate
+        action: Optional action dictionary to validate (for Rules 1, 2, 3, 10)
+        context: Optional context dictionary with additional validation data
+    
+    Returns:
+        ConstitutionalValidation: Complete validation result with compliance status
+        
+    Example:
+        >>> from models.core import Proposal, BoardSession
+        >>> proposal = Proposal(...)
+        >>> validation = validate_constitutional_compliance(proposal=proposal)
+        >>> if not validation.is_compliant:
+        ...     print(f"Violations: {validation.violated_rules}")
+    """
+    from models.core import (
+        ConstitutionalValidation,
+        ConstitutionalRule,
+        ProposalStatus
+    )
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Initialize validation result
+    validation = ConstitutionalValidation(
+        proposal_id=proposal.id if proposal else None,
+        session_id=board_session.id if board_session else None,
+        is_compliant=True
+    )
+    
+    try:
+        # Rule 1: Access Control
+        if action:
+            try:
+                enforce_rule_1(action, action.get('owner_permission', False))
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_1_ACCESS_CONTROL)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_1_ACCESS_CONTROL, str(e))
+        
+        # Rule 2: No Unauthorized Access
+        if action:
+            try:
+                enforce_rule_2(action, action.get('owner_consent', False))
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_2_NO_UNAUTHORIZED_ACCESS)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_2_NO_UNAUTHORIZED_ACCESS, str(e))
+        
+        # Rule 3: Immutable Constitution
+        if action:
+            try:
+                enforce_rule_3(action)
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_3_IMMUTABLE_CONSTITUTION)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_3_IMMUTABLE_CONSTITUTION, str(e))
+        
+        # Rule 4: Financial Priority
+        if proposal:
+            try:
+                alternative_impact = context.get('alternative_impact') if context else None
+                enforce_rule_4(
+                    {'id': proposal.id, 'title': proposal.title},
+                    proposal.financial_impact,
+                    alternative_impact
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_4_FINANCIAL_PRIORITY)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_4_FINANCIAL_PRIORITY, str(e))
+        
+        # Rule 5: Legal Protection
+        if proposal:
+            try:
+                legal_approval = context.get('legal_approval', False) if context else False
+                enforce_rule_5(
+                    {'id': proposal.id, 'title': proposal.title},
+                    proposal.legal_risk,
+                    legal_approval
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_5_LEGAL_PROTECTION)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_5_LEGAL_PROTECTION, str(e))
+        
+        # Rule 6: Full Transparency
+        if proposal:
+            try:
+                enforce_rule_6(
+                    {'id': proposal.id, 'title': proposal.title},
+                    proposal.logged,
+                    context.get('log_path') if context else None
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_6_FULL_TRANSPARENCY)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_6_FULL_TRANSPARENCY, str(e))
+        
+        if board_session:
+            try:
+                enforce_rule_6(
+                    {'id': board_session.id, 'type': 'session'},
+                    board_session.logged,
+                    context.get('log_path') if context else None
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_6_FULL_TRANSPARENCY)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_6_FULL_TRANSPARENCY, str(e))
+        
+        # Rule 7: Board Approval
+        if proposal:
+            try:
+                enforce_rule_7(
+                    {'id': proposal.id, 'title': proposal.title},
+                    proposal.board_approved,
+                    context.get('approval_record') if context else None
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_7_BOARD_APPROVAL)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_7_BOARD_APPROVAL, str(e))
+        
+        # Rule 8: Board Composition
+        if board_session:
+            try:
+                enforce_rule_8_with_model(board_session)
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_8_BOARD_COMPOSITION)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_8_BOARD_COMPOSITION, str(e))
+        
+        if vote_result:
+            # Rule 8 is also checked in VoteResult validator
+            try:
+                enforce_rule_8([member_id for member_id in vote_result.votes.keys()])
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_8_BOARD_COMPOSITION)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_8_BOARD_COMPOSITION, str(e))
+        
+        # Rule 9: Voting Weight Limit
+        if vote_result:
+            try:
+                enforce_rule_9_with_model(vote_result)
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_9_VOTING_WEIGHT_LIMIT)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_9_VOTING_WEIGHT_LIMIT, str(e))
+        
+        if board_session:
+            try:
+                weights = board_session.calculate_vote_weights()
+                enforce_rule_9(weights)
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_9_VOTING_WEIGHT_LIMIT)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_9_VOTING_WEIGHT_LIMIT, str(e))
+        
+        # Rule 10: Human Ownership Lock
+        if proposal:
+            try:
+                enforce_rule_10(
+                    {'id': proposal.id, 'title': proposal.title, 'description': proposal.description},
+                    proposal.owner_authorized
+                )
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_10_HUMAN_OWNERSHIP_LOCK)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_10_HUMAN_OWNERSHIP_LOCK, str(e))
+        
+        if action:
+            try:
+                enforce_rule_10(action, action.get('owner_authorized', False))
+                validation.mark_rule_compliant(ConstitutionalRule.RULE_10_HUMAN_OWNERSHIP_LOCK)
+            except ConstitutionalError as e:
+                validation.add_violation(ConstitutionalRule.RULE_10_HUMAN_OWNERSHIP_LOCK, str(e))
+        
+        # Log validation result
+        if validation.is_compliant:
+            logger.info(
+                f"Constitutional validation passed for "
+                f"proposal={proposal.id if proposal else None}, "
+                f"session={board_session.id if board_session else None}"
+            )
+        else:
+            logger.warning(
+                f"Constitutional validation failed with violations: {validation.violated_rules}"
+            )
+        
+        return validation
+        
+    except Exception as e:
+        logger.error(f"Error during constitutional validation: {e}", exc_info=True)
+        validation.add_violation(
+            ConstitutionalRule.RULE_3_IMMUTABLE_CONSTITUTION,
+            f"Validation system error: {str(e)}"
+        )
+        return validation
 

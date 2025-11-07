@@ -68,6 +68,24 @@ class RoleType(str, Enum):
     SECRETARY = "SECRETARY"
 
 
+class ConstitutionalRule(int, Enum):
+    """
+    Enumeration of the 10 constitutional rules.
+    
+    Maps to business rules from Section 3.2 of the AI Business Plan.
+    """
+    RULE_1_ACCESS_CONTROL = 1
+    RULE_2_NO_UNAUTHORIZED_ACCESS = 2
+    RULE_3_IMMUTABLE_CONSTITUTION = 3
+    RULE_4_FINANCIAL_PRIORITY = 4
+    RULE_5_LEGAL_PROTECTION = 5
+    RULE_6_FULL_TRANSPARENCY = 6
+    RULE_7_BOARD_APPROVAL = 7
+    RULE_8_BOARD_COMPOSITION = 8
+    RULE_9_VOTING_WEIGHT_LIMIT = 9
+    RULE_10_HUMAN_OWNERSHIP_LOCK = 10
+
+
 # ============================================================================
 # Core Models
 # ============================================================================
@@ -302,6 +320,91 @@ class BoardSession(BaseModel):
             return normalized
         
         return weights
+
+
+class ConstitutionalValidation(BaseModel):
+    """
+    Result of constitutional compliance validation.
+    
+    Tracks which rules were checked and their compliance status.
+    Note: Not frozen to allow building validation results incrementally.
+    """
+    model_config = {"frozen": False}  # Mutable to allow incremental building
+    
+    proposal_id: Optional[str] = Field(None, description="Proposal ID if validating proposal")
+    session_id: Optional[str] = Field(None, description="Session ID if validating session")
+    validated_at: datetime = Field(default_factory=datetime.now, description="Validation timestamp")
+    is_compliant: bool = Field(default=True, description="Overall compliance status")
+    violated_rules: list[ConstitutionalRule] = Field(
+        default_factory=list, 
+        description="List of violated rule numbers"
+    )
+    validation_details: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Per-rule validation results (rule_name -> compliant)"
+    )
+    error_messages: list[str] = Field(
+        default_factory=list,
+        description="Error messages for violations"
+    )
+    
+    def add_violation(self, rule: ConstitutionalRule, message: str) -> None:
+        """Add a rule violation."""
+        if rule not in self.violated_rules:
+            self.violated_rules.append(rule)
+        self.error_messages.append(message)
+        self.is_compliant = False
+        self.validation_details[f"rule_{rule.value}"] = False
+    
+    def mark_rule_compliant(self, rule: ConstitutionalRule) -> None:
+        """Mark a rule as compliant."""
+        self.validation_details[f"rule_{rule.value}"] = True
+
+
+class APIResponse(BaseModel):
+    """
+    Standard API response model for all endpoints.
+    
+    Ensures consistent response structure across the system.
+    """
+    model_config = {"frozen": True}  # Immutable (Rule 3)
+    
+    success: bool = Field(..., description="Whether the operation succeeded")
+    message: str = Field(..., description="Human-readable message")
+    data: Optional[dict] = Field(None, description="Response data payload")
+    errors: list[str] = Field(default_factory=list, description="List of error messages")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
+    request_id: Optional[str] = Field(None, description="Request identifier for tracing")
+    
+    @classmethod
+    def success_response(
+        cls, 
+        message: str, 
+        data: Optional[dict] = None,
+        request_id: Optional[str] = None
+    ) -> 'APIResponse':
+        """Create a successful API response."""
+        return cls(
+            success=True,
+            message=message,
+            data=data,
+            request_id=request_id
+        )
+    
+    @classmethod
+    def error_response(
+        cls,
+        message: str,
+        errors: list[str],
+        request_id: Optional[str] = None
+    ) -> 'APIResponse':
+        """Create an error API response."""
+        return cls(
+            success=False,
+            message=message,
+            errors=errors,
+            request_id=request_id
+        )
 
 
 # ============================================================================
