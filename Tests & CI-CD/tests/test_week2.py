@@ -16,38 +16,28 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import Dict
+from unittest.mock import patch
 
 # Third-party
 from pydantic import ValidationError
 
-# Local - models first (single source of truth)
+# Setup sys.path for imports from folders with spaces
 import sys
-project_root = Path(__file__).parent.parent.parent
-codebase_memory = project_root / "Memory Systems" / "Codebase Memory"
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root / "Memory Systems"))
+sys.path.insert(0, str(project_root / "Governance Layer"))
+sys.path.insert(0, str(project_root / "Config & Settings"))
+sys.path.insert(0, str(project_root / "Utilities"))
+sys.path.insert(0, str(project_root / "Constitutional Layer (Immutable)"))
 
-from models.core import ConstitutionalRule
+# Local - models first (single source of truth)
+sys.path.insert(0, str(project_root / "Memory Systems" / "Codebase Memory"))
+from models.core import ConstitutionalRule, ConstitutionalError
 
-# Local - configuration and logging
-sys.path.insert(0, str(project_root))
-# Import with proper path handling for spaces in directory names
-import importlib.util
-config_spec = importlib.util.spec_from_file_location(
-    "config", project_root / "Config & Settings" / "config.py"
-)
-config_module = importlib.util.module_from_spec(config_spec)
-config_spec.loader.exec_module(config_module)
-Settings = config_module.Settings
-get_settings = config_module.get_settings
-
-logger_spec = importlib.util.spec_from_file_location(
-    "logger", project_root / "Utilities" / "logger.py"
-)
-logger_module = importlib.util.module_from_spec(logger_spec)
-logger_spec.loader.exec_module(logger_module)
-log_event = logger_module.log_event
-get_recent_logs = logger_module.get_recent_logs
+# Local - configuration and logging (import directly from path)
+from config import Settings, get_settings
+import logger as logger_module
+from logger import log_event, get_recent_logs
 
 
 class TestSettings:
@@ -195,27 +185,19 @@ class TestSettings:
                 os.environ.pop(key, None)
     
     def test_validate_constitutional_compliance_rule_8_violation(self) -> None:
-        """Test that Rule 8 violation raises ValueError."""
-        # Set only 3 models (violates Rule 8)
-        test_env = {
-            "OPENAI_API_KEY": "key1",
-            "ANTHROPIC_API_KEY": "key2",
-            "GOOGLE_API_KEY": "key3"
-        }
+        """Test that Rule 8 violation raises ConstitutionalError."""
+        # Create settings with only 3 models (violates Rule 8)
+        # We need to mock the active_models property since defaults now add 5 models
+        settings = Settings()
         
-        for key, value in test_env.items():
-            os.environ[key] = value
+        # Mock active_models to return only 3 models
+        original_active_models = settings.active_models
         
-        try:
-            settings = Settings()
-            
-            # Should raise ValueError with "Rule 8" in message
-            with pytest.raises(ValueError, match="Rule 8"):
+        # Temporarily replace the property
+        with patch.object(Settings, 'active_models', property(lambda self: ["openai", "anthropic", "google"])):
+            # Should raise ConstitutionalError with "Rule 8" in message
+            with pytest.raises(ConstitutionalError, match="Rule 8"):
                 settings.validate_constitutional_compliance()
-                
-        finally:
-            for key in test_env.keys():
-                os.environ.pop(key, None)
 
 
 class TestLogging:

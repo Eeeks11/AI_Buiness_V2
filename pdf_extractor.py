@@ -5,8 +5,20 @@ Fixed version that handles None values from extract_text() calls.
 Some PDFs with images, encrypted text, or complex encoding can return None.
 """
 
-import pypdf
+# Standard library
 import sys
+from pathlib import Path
+
+# Third-party
+import pypdf
+
+# Local - models first (single source of truth)
+project_root = Path(__file__).parent
+codebase_memory = project_root / "Memory Systems" / "Codebase Memory"
+if str(codebase_memory) not in sys.path:
+    sys.path.insert(0, str(codebase_memory))
+
+from models.core import ConstitutionalError
 
 
 def extract_pdf_text(pdf_path: str) -> str:
@@ -21,7 +33,7 @@ def extract_pdf_text(pdf_path: str) -> str:
     
     Raises:
         FileNotFoundError: If PDF file doesn't exist
-        Exception: For other PDF reading errors
+        ConstitutionalError: For other PDF reading errors (Rule 4 compliance)
     """
     try:
         with open(pdf_path, 'rb') as pdf:
@@ -33,7 +45,7 @@ def extract_pdf_text(pdf_path: str) -> str:
     except FileNotFoundError:
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
     except Exception as e:
-        raise Exception(f"Error extracting PDF text: {e}")
+        raise ConstitutionalError(f"Error extracting PDF text: {e}")
 
 
 if __name__ == '__main__':
@@ -45,7 +57,7 @@ if __name__ == '__main__':
     try:
         text = extract_pdf_text(pdf_path)
         sys.stdout.buffer.write(text.encode('utf-8'))
-    except Exception as e:
+    except (FileNotFoundError, ConstitutionalError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
