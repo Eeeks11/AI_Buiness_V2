@@ -100,7 +100,29 @@ Audit & Compliance/
 Tests & CI-CD/
   ├── tests/
   └── .github/workflows/
+
+Cursor Development reports/
+  └── [All reports, validation docs, analysis files]
 ```
+
+## Report File Placement (CRITICAL)
+
+**ALWAYS** save reports, validation documents, and analysis files to:
+- `Cursor Development reports/` folder
+- **NEVER** create reports in the repository root
+- **NEVER** create reports in other directories
+
+**Examples:**
+- ✅ `Cursor Development reports/CONSTITUTIONAL_VALIDATION_REPORT.md`
+- ✅ `Cursor Development reports/CODE_QUALITY_ANALYSIS.md`
+- ❌ `CONSTITUTIONAL_VALIDATION_REPORT.md` (root - WRONG)
+- ❌ `reports/validation.md` (different folder - WRONG)
+
+**When generating any report:**
+1. Check if `Cursor Development reports/` folder exists
+2. Save ALL reports to that folder
+3. Use descriptive filenames with UPPER_SNAKE_CASE
+4. See `Cursor Development reports/README.md` for details
 
 ## What NOT to Do
 
