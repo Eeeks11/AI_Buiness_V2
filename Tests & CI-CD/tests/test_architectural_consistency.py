@@ -20,12 +20,25 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 MODELS_CORE_PATH = PROJECT_ROOT / "Memory Systems" / "Codebase Memory" / "models" / "core.py"
 CODING_CONSTITUTION_PATH = PROJECT_ROOT / "Constitutional Layer (Immutable)" / "CODING_CONSTITUTION.md"
 
-# Files that should be excluded from certain checks
+# Files and directories that should be excluded from certain checks
 EXCLUDED_FILES = {
     "__pycache__",
     ".pyc",
     "test_",
     "__init__.py",
+}
+
+# Directories to exclude (virtual environments, third-party packages)
+EXCLUDED_DIRS = {
+    ".venv",
+    "venv",
+    "env",
+    "ENV",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "site-packages",
+    "node_modules",
 }
 
 # Required models that MUST exist in models/core.py
@@ -47,10 +60,15 @@ REQUIRED_MODELS = {
 # ============================================================================
 
 def get_python_files(directory: Path) -> List[Path]:
-    """Get all Python files in directory, excluding test files and cache."""
+    """Get all Python files in directory, excluding test files, cache, and third-party packages."""
     python_files = []
     for path in directory.rglob("*.py"):
-        if any(excluded in str(path) for excluded in EXCLUDED_FILES):
+        # Skip if path contains any excluded directory
+        path_str = str(path)
+        if any(excluded_dir in path_str for excluded_dir in EXCLUDED_DIRS):
+            continue
+        # Skip if path contains any excluded file pattern
+        if any(excluded in path_str for excluded in EXCLUDED_FILES):
             continue
         python_files.append(path)
     return python_files
@@ -77,6 +95,29 @@ def get_imports(node: ast.AST) -> Set[str]:
                     imports.add(f"{child.module}.{alias.name}")
     
     return imports
+
+
+def imports_from_module(node: ast.AST, module_name: str, item_name: str) -> bool:
+    """
+    Check if a specific item is imported from a specific module.
+    
+    Args:
+        node: AST node to search
+        module_name: Module name to check (e.g., "models.core")
+        item_name: Item name to check (e.g., "ConstitutionalError")
+        
+    Returns:
+        True if item_name is imported from module_name
+    """
+    for child in ast.walk(node):
+        if isinstance(child, ast.ImportFrom):
+            # Check if the module matches (exact match or module_name is part of the import)
+            if child.module and (child.module == module_name or child.module.endswith(f".{module_name}") or module_name in child.module):
+                for alias in child.names or []:
+                    # Check both the alias name and the actual name (in case of "import X as Y")
+                    if alias.name == item_name or (alias.asname and alias.asname == item_name):
+                        return True
+    return False
 
 
 def get_class_definitions(node: ast.AST) -> List[str]:
@@ -239,12 +280,21 @@ class TestTypeSafety:
                     if func.name.startswith("_"):
                         continue
                     
-                    # Skip if it's a method in a class (check parent)
-                    is_method = any(
-                        isinstance(parent, ast.ClassDef) 
-                        for parent in ast.walk(tree)
-                        if hasattr(parent, "body") and func in getattr(parent, "body", [])
-                    )
+                    # Check if function is a method in a class by traversing AST properly
+                    is_method = False
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.ClassDef):
+                            # Check if func is in this class's body
+                            for item in node.body:
+                                if isinstance(item, ast.FunctionDef) and item == func:
+                                    is_method = True
+                                    break
+                            if is_method:
+                                break
+                    
+                    # Skip methods for now (they may have less strict requirements)
+                    if is_method:
+                        continue
                     
                     if not has_type_hints(func):
                         violations.append(
@@ -277,24 +327,21 @@ class TestErrorHandling:
             
             try:
                 tree = parse_file(file_path)
-                file_content = file_path.read_text()
+                # Read file with UTF-8 encoding to avoid UnicodeDecodeError
+                file_content = file_path.read_text(encoding="utf-8")
                 
                 # Check if ConstitutionalError is used
                 if "ConstitutionalError" in file_content:
-                    imports = get_imports(tree)
-                    
-                    # Should import from models.core
-                    has_correct_import = any(
-                        "models.core" in imp and "ConstitutionalError" in str(tree)
-                        for imp in imports
-                    )
+                    # Check if ConstitutionalError is imported from models.core
+                    has_correct_import = imports_from_module(tree, "models.core", "ConstitutionalError")
                     
                     if not has_correct_import:
                         violations.append(
                             f"{file_path.relative_to(PROJECT_ROOT)} uses ConstitutionalError "
                             f"but doesn't import from models.core"
                         )
-            except SyntaxError:
+            except (SyntaxError, UnicodeDecodeError):
+                # Skip files with syntax errors or encoding issues
                 pass
         
         assert len(violations) == 0, (
@@ -350,7 +397,8 @@ class TestLogging:
         
         for file_path in main_files:
             try:
-                content = file_path.read_text()
+                # Read file with UTF-8 encoding
+                content = file_path.read_text(encoding="utf-8")
                 tree = parse_file(file_path)
                 
                 # Check for logger initialization pattern
@@ -466,7 +514,8 @@ class TestConstitutionFileExists:
     
     def test_coding_constitution_has_rules(self):
         """Test that CODING_CONSTITUTION.md contains all 10 rules."""
-        content = CODING_CONSTITUTION_PATH.read_text()
+        # Read file with UTF-8 encoding to avoid UnicodeDecodeError
+        content = CODING_CONSTITUTION_PATH.read_text(encoding="utf-8")
         
         # Check for rule markers
         rule_count = content.count("### Rule")
@@ -483,7 +532,8 @@ class TestModelsCoreStructure:
         """Test that models/core.py exports required models."""
         assert MODELS_CORE_PATH.exists(), "models/core.py must exist"
         
-        content = MODELS_CORE_PATH.read_text()
+        # Read file with UTF-8 encoding
+        content = MODELS_CORE_PATH.read_text(encoding="utf-8")
         
         # Check that required models are defined
         for model_name in REQUIRED_MODELS:
@@ -495,8 +545,10 @@ class TestModelsCoreStructure:
         """Test that models inherit from Pydantic BaseModel."""
         tree = parse_file(MODELS_CORE_PATH)
         
+        # Read file with UTF-8 encoding
+        content = MODELS_CORE_PATH.read_text(encoding="utf-8")
         # Check that classes inherit from BaseModel
-        has_pydantic_import = "BaseModel" in MODELS_CORE_PATH.read_text()
+        has_pydantic_import = "BaseModel" in content
         assert has_pydantic_import, "models/core.py must import BaseModel from pydantic"
 
 

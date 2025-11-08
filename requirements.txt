@@ -18,7 +18,7 @@ chromadb>=0.4.18
 sentence-transformers>=2.2.2
 
 # Immutable Storage & Audit
-arweave-python-client>=2.0.0
+arweave-python-client>=1.0.14
 
 # Web Interface
 streamlit>=1.28.0

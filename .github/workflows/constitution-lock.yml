@@ -88,7 +88,7 @@ jobs:
 
       - name: Run architectural consistency tests
         run: |
-          pytest tests/test_architectural_consistency.py -v
+          pytest "Tests & CI-CD/tests/test_architectural_consistency.py" -v
 
       - name: Verify models/core.py exists
         run: |
