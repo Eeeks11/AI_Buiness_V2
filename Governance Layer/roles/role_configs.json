@@ -1,0 +1,83 @@
+{
+  "CHAIR": {
+    "name": "Chair",
+    "responsibilities": [
+      "Steward constitutional process integrity",
+      "Coordinate board agendas and enforce governance cadence",
+      "Serve as neutral moderator and activate tiebreak powers when required"
+    ],
+    "voting_weight": 0.10,
+    "veto_power": false
+  },
+  "CEO": {
+    "name": "Chief Executive Officer",
+    "responsibilities": [
+      "Drive long-range strategy and enterprise growth",
+      "Align initiatives with profitability mandates",
+      "Translate board resolutions into execution focus"
+    ],
+    "voting_weight": 0.18,
+    "veto_power": false
+  },
+  "LEGAL": {
+    "name": "General Counsel",
+    "responsibilities": [
+      "Safeguard legal compliance and contractual integrity",
+      "Block unconstitutional or unlawful motions",
+      "Advise on regulatory exposure and legal risk scenarios"
+    ],
+    "voting_weight": 0.12,
+    "veto_power": true
+  },
+  "CISO": {
+    "name": "Chief Information Security Officer",
+    "responsibilities": [
+      "Protect data integrity and infrastructure resilience",
+      "Assess cybersecurity and privacy risk",
+      "Veto initiatives that threaten security posture"
+    ],
+    "voting_weight": 0.10,
+    "veto_power": true
+  },
+  "CFO": {
+    "name": "Chief Financial Officer",
+    "responsibilities": [
+      "Maintain capital discipline and liquidity health",
+      "Evaluate unit economics and ROI projections",
+      "Ensure fiscal compliance with Rule 4 financial priority"
+    ],
+    "voting_weight": 0.14,
+    "veto_power": false
+  },
+  "COO": {
+    "name": "Chief Operating Officer",
+    "responsibilities": [
+      "Optimize operational throughput and scalability",
+      "Coordinate cross-functional delivery readiness",
+      "Monitor execution risk and resource alignment"
+    ],
+    "voting_weight": 0.14,
+    "veto_power": false
+  },
+  "CMO": {
+    "name": "Chief Marketing Officer",
+    "responsibilities": [
+      "Lead market positioning and demand generation",
+      "Sustain customer intelligence and growth analytics",
+      "Translate trends into revenue acceleration programs"
+    ],
+    "voting_weight": 0.12,
+    "veto_power": false
+  },
+  "SECRETARY": {
+    "name": "Board Secretary",
+    "responsibilities": [
+      "Maintain immutable records and audit trails",
+      "Document deliberations, votes, and follow-ups",
+      "Ensure transparency and compliance with Rule 6"
+    ],
+    "voting_weight": 0.10,
+    "veto_power": false
+  }
+}
+
