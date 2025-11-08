@@ -1,0 +1,297 @@
+"""
+Episodic Memory System
+
+Stores and retrieves specific events, decisions, and actions with temporal context.
+Implements Rule 6: Full Transparency by logging all events to persistent storage.
+"""
+
+# Standard library
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+import sys
+
+# Third-party
+import litellm
+
+# Local - models first (single source of truth)
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
+from models.core import ConstitutionalValidation, APIResponse, ConstitutionalError
+
+# Local - constitutional enforcement
+sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
+from constitution import validate_constitutional_compliance
+
+# Local - utilities
+sys.path.insert(0, str(project_root / "Utilities"))
+from logger import log_event as base_log_event
+
+logger = logging.getLogger(__name__)
+
+
+# Log file path
+_log_file_path: Optional[Path] = None
+
+
+def _get_log_file_path() -> Path:
+    """
+    Get the path to the events log file, creating directory if needed.
+    
+    Returns:
+        Path to audit_compliance/logs/events.jsonl
+    """
+    global _log_file_path
+    if _log_file_path is None:
+        log_dir = project_root / "audit_compliance" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        _log_file_path = log_dir / "events.jsonl"
+    return _log_file_path
+
+
+def log_event(
+    event_type: str,
+    data: Dict,
+    metadata: Optional[Dict] = None
+) -> Dict:
+    """
+    Log an event to episodic memory with constitutional validation.
+    
+    This function enforces Rule 6: Full Transparency by ensuring all events
+    are logged to a persistent, accessible record. Constitutional compliance
+    is validated before logging.
+    
+    Args:
+        event_type: Type identifier for the event (e.g., 'board_decision', 'vote_cast')
+        data: Dictionary containing event data
+        metadata: Optional dictionary with additional metadata
+        
+    Returns:
+        Dictionary containing the logged entry with timestamp
+        
+    Raises:
+        ConstitutionalError: If constitutional validation fails
+        
+    Example:
+        >>> entry = log_event(
+        ...     event_type="board_decision",
+        ...     data={"proposal_id": "prop1", "outcome": "approved"},
+        ...     metadata={"session_id": "sess1"}
+        ... )
+        >>> assert "timestamp" in entry
+    """
+    # Validate constitutional compliance before logging (Rule 6)
+    try:
+        validation = validate_constitutional_compliance(
+            action={
+                "type": "log_event",
+                "event_type": event_type,
+                "logged": True
+            }
+        )
+        if not validation.is_compliant:
+            logger.error(
+                f"Constitutional validation failed for event {event_type}: "
+                f"{validation.violated_rules}"
+            )
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Cannot log event without constitutional compliance. "
+                f"Violations: {validation.violated_rules}"
+            )
+    except Exception as e:
+        logger.error(f"Constitutional validation error for event {event_type}: {e}", exc_info=True)
+        raise
+    
+    log_path = _get_log_file_path()
+    
+    # Create log entry with timestamp
+    timestamp = datetime.now().isoformat()
+    log_entry = {
+        "timestamp": timestamp,
+        "type": event_type,
+        "data": data,
+        "metadata": metadata or {}
+    }
+    
+    # Append to JSONL file
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+        
+        logger.info(f"Logged episodic event: {event_type}", extra={
+            "event_type": event_type,
+            "timestamp": timestamp
+        })
+        
+        return log_entry
+        
+    except Exception as e:
+        logger.error(f"Failed to log episodic event {event_type}: {e}", exc_info=True)
+        raise
+
+
+def get_recent_events(limit: int = 100) -> List[Dict]:
+    """
+    Retrieve the most recent events from episodic memory.
+    
+    Reads from audit_compliance/logs/events.jsonl and returns
+    the last N events, most recent first.
+    
+    Args:
+        limit: Maximum number of events to retrieve (default: 100)
+        
+    Returns:
+        List of event dictionaries, most recent first
+        
+    Example:
+        >>> events = get_recent_events(limit=10)
+        >>> for event in events:
+        ...     print(f"{event['timestamp']}: {event['type']}")
+    """
+    log_path = _get_log_file_path()
+    
+    if not log_path.exists():
+        logger.warning(f"Episodic memory log file does not exist: {log_path}")
+        return []
+    
+    entries = []
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            # Read all lines
+            lines = f.readlines()
+            
+            # Parse JSON from each line (JSONL format)
+            for line in lines:
+                line = line.strip()
+                if line:
+                    try:
+                        entry = json.loads(line)
+                        entries.append(entry)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse episodic memory entry: {e}")
+                        continue
+        
+        # Return most recent entries first
+        entries.reverse()
+        result = entries[:limit]
+        
+        logger.debug(f"Retrieved {len(result)} recent events from episodic memory")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to read episodic memory log file: {e}", exc_info=True)
+        return []
+
+
+def summarize_recent_activity(events: List[Dict]) -> str:
+    """
+    Summarize recent board activities using LLM.
+    
+    Uses LiteLLM to call gpt-4o-mini for summarization. The summary focuses on:
+    - Decisions made
+    - Votes cast
+    - Outcomes
+    - Reasoning
+    
+    This function logs the LLM call for Rule 6 compliance.
+    
+    Args:
+        events: List of event dictionaries to summarize
+        
+    Returns:
+        String containing the summary of recent activity
+        
+    Raises:
+        ConstitutionalError: If LLM call fails or constitutional validation fails
+        
+    Example:
+        >>> events = get_recent_events(limit=50)
+        >>> summary = summarize_recent_activity(events)
+        >>> print(summary)
+    """
+    if not events:
+        logger.warning("No events provided for summarization")
+        return "No recent activity to summarize."
+    
+    # Log LLM call attempt (Rule 6)
+    try:
+        base_log_event(
+            event_type="llm_call_attempt",
+            data={
+                "provider": "openai/gpt-4o-mini",
+                "purpose": "summarize_recent_activity",
+                "event_count": len(events)
+            },
+            metadata={"function": "summarize_recent_activity"}
+        )
+    except Exception as e:
+        logger.error(f"Failed to log LLM call attempt: {e}", exc_info=True)
+        # Continue despite logging failure
+    
+    # Prepare prompt
+    events_text = json.dumps(events, indent=2, ensure_ascii=False)
+    prompt = (
+        f"Summarize these board activities: {events_text}\n\n"
+        f"Focus on:\n"
+        f"1. Decisions made\n"
+        f"2. Votes cast\n"
+        f"3. Outcomes\n"
+        f"4. Reasoning\n\n"
+        f"Provide a concise summary in plain text."
+    )
+    
+    try:
+        # Call LLM via LiteLLM
+        response = litellm.completion(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a board activity summarizer. Provide clear, concise summaries."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        summary = response.choices[0].message.content.strip()
+        
+        # Log successful LLM call (Rule 6)
+        try:
+            base_log_event(
+                event_type="llm_call_success",
+                data={
+                    "provider": "openai/gpt-4o-mini",
+                    "purpose": "summarize_recent_activity",
+                    "response_length": len(summary)
+                },
+                metadata={"function": "summarize_recent_activity"}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log LLM call success: {e}")
+        
+        logger.info(f"Generated activity summary: {len(summary)} characters")
+        return summary
+        
+    except Exception as e:
+        logger.error(f"LLM call failed for activity summarization: {e}", exc_info=True)
+        
+        # Log failed LLM call (Rule 6)
+        try:
+            base_log_event(
+                event_type="llm_call_failure",
+                data={
+                    "provider": "openai/gpt-4o-mini",
+                    "purpose": "summarize_recent_activity",
+                    "error": str(e)
+                },
+                metadata={"function": "summarize_recent_activity"}
+            )
+        except Exception as log_error:
+            logger.error(f"Failed to log LLM call failure: {log_error}")
+        
+        raise ConstitutionalError(
+            f"Rule 6 Violation: Failed to summarize recent activity. LLM call failed: {e}"
+        )
+    
+    # TODO: Week 9: Add Arweave batch pinning here

@@ -10,40 +10,40 @@ The system is organized into distinct layers, each with specific responsibilitie
 
 ```
 .
-├── Constitutional Layer (Immutable)/
+├── constitutional_layer_immutable/
 │   ├── constitution.md              # Business constitution (immutable)
 │   ├── CODING_CONSTITUTION.md      # Engineering standards (immutable)
 │   └── constitution.py              # Enforcement functions (immutable)
 │
-├── Memory Systems/
-│   ├── Business Memory/
+├── memory_systems/
+│   ├── business_memory/
 │   │   └── memory/                  # Episodic, semantic, context, access
-│   └── Codebase Memory/
+│   └── codebase_memory/
 │       └── models/
 │           └── core.py              # ALL models (single source of truth)
 │
-├── Governance Layer/
+├── governance_layer/
 │   ├── orchestrator/                # Board orchestration
 │   ├── roles/                       # Role definitions
 │   ├── voting/                      # Voting mechanisms
 │   └── governance/                  # Retrospective analysis
 │
-├── Owner Control/
+├── owner_control/
 │   ├── owner_gate/                  # Authorization layer
 │   └── dashboard/                   # Owner interface
 │
-├── Audit & Compliance/
+├── audit_compliance/
 │   ├── logs/                        # Immutable audit logs
 │   ├── arweave/                     # Arweave integration
 │   └── telemetry/                   # Metrics and monitoring
 │
-├── Config & Settings/
+├── config_settings/
 │   └── config.py                    # System configuration
 │
 ├── Utilities/
 │   └── logger.py                    # Logging utilities
 │
-└── Tests & CI-CD/
+└── tests_ci_cd/
     └── tests/                       # All test files
 ```
 
@@ -269,7 +269,7 @@ pytest Tests\ &\ CI-CD/tests/ --cov=. --cov-report=html
 
 ### Test Structure
 
-- Test files in `Tests & CI-CD/tests/`
+- Test files in `tests_ci_cd/tests/`
 - Test files start with `test_`
 - Test functions start with `test_`
 - Use `pytest` fixtures for test data
