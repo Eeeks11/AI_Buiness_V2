@@ -22,9 +22,9 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Local - models first (single source of truth)
-# Add Codebase Memory to path for imports
+# Add codebase_memory to path for imports
 project_root = Path(__file__).parent
-codebase_memory = project_root / "Memory Systems" / "Codebase Memory"
+codebase_memory = project_root / "memory_systems" / "codebase_memory"
 if str(codebase_memory) not in sys.path:
     sys.path.insert(0, str(codebase_memory))
 
@@ -32,7 +32,7 @@ from models.core import ConstitutionalRule
 
 # Local - configuration and logging
 import importlib.util
-config_path = project_root / "Config & Settings" / "config.py"
+config_path = project_root / "config_settings" / "config.py"
 config_spec = importlib.util.spec_from_file_location("config", config_path)
 config_module = importlib.util.module_from_spec(config_spec)
 config_spec.loader.exec_module(config_module)
@@ -45,7 +45,7 @@ logger_spec.loader.exec_module(logger_module)
 log_event = logger_module.log_event
 
 # Local - constitution
-constitution_path = project_root / "Constitutional Layer (Immutable)"
+constitution_path = project_root / "constitutional_layer_immutable"
 if str(constitution_path) not in sys.path:
     sys.path.insert(0, str(constitution_path))
 

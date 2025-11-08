@@ -3,18 +3,18 @@ name: Constitution Lock & Architectural Consistency
 on:
   pull_request:
     paths:
-      - 'Constitutional Layer (Immutable)/**'
-      - 'Memory Systems/Codebase Memory/**'
-      - 'Tests & CI-CD/**'
+      - 'constitutional_layer_immutable/**'
+      - 'memory_systems/codebase_memory/**'
+      - 'tests_ci_cd/**'
       - '*.py'
   push:
     branches:
       - main
       - master
     paths:
-      - 'Constitutional Layer (Immutable)/**'
-      - 'Memory Systems/Codebase Memory/**'
-      - 'Tests & CI-CD/**'
+      - 'constitutional_layer_immutable/**'
+      - 'memory_systems/codebase_memory/**'
+      - 'tests_ci_cd/**'
       - '*.py'
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Detect immutable file changes
         id: detect-changes
         run: |
-          IMMUTABLE_FILES=("Constitutional Layer (Immutable)/constitution.md" "Constitutional Layer (Immutable)/constitution.py" "Constitutional Layer (Immutable)/CODING_CONSTITUTION.md")
+          IMMUTABLE_FILES=("constitutional_layer_immutable/constitution.md" "constitutional_layer_immutable/constitution.py" "constitutional_layer_immutable/CODING_CONSTITUTION.md")
           CHANGED_FILES=""
           
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -88,23 +88,23 @@ jobs:
 
       - name: Run architectural consistency tests
         run: |
-          pytest "Tests & CI-CD/tests/test_architectural_consistency.py" -v
+          pytest "tests_ci_cd/tests/test_architectural_consistency.py" -v
 
       - name: Verify models/core.py exists
         run: |
-          if [ ! -f "Memory Systems/Codebase Memory/models/core.py" ]; then
-            echo "::error::Memory Systems/Codebase Memory/models/core.py must exist (Rule 8: Minimum Model Requirements)"
+          if [ ! -f "memory_systems/codebase_memory/models/core.py" ]; then
+            echo "::error::memory_systems/codebase_memory/models/core.py must exist (Rule 8: Minimum Model Requirements)"
             exit 1
           fi
-          echo "✓ Memory Systems/Codebase Memory/models/core.py exists"
+          echo "✓ memory_systems/codebase_memory/models/core.py exists"
 
       - name: Verify CODING_CONSTITUTION.md exists
         run: |
-          if [ ! -f "Constitutional Layer (Immutable)/CODING_CONSTITUTION.md" ]; then
-            echo "::error::Constitutional Layer (Immutable)/CODING_CONSTITUTION.md must exist"
+          if [ ! -f "constitutional_layer_immutable/CODING_CONSTITUTION.md" ]; then
+            echo "::error::constitutional_layer_immutable/CODING_CONSTITUTION.md must exist"
             exit 1
           fi
-          echo "✓ Constitutional Layer (Immutable)/CODING_CONSTITUTION.md exists"
+          echo "✓ constitutional_layer_immutable/CODING_CONSTITUTION.md exists"
 
       - name: Check for required models
         run: |
@@ -112,7 +112,7 @@ jobs:
           import sys
           from pathlib import Path
           project_root = Path('.')
-          codebase_memory = project_root / 'Memory Systems' / 'Codebase Memory'
+          codebase_memory = project_root / 'memory_systems' / 'codebase_memory'
           sys.path.insert(0, str(codebase_memory))
           try:
               from models.core import Vote, VoteResult, Proposal, BoardSession, BoardMember, ConstitutionalError
