@@ -142,7 +142,7 @@ class Settings(BaseSettings):
         Validate constitutional compliance (Rules 8 and 9).
         
         Raises:
-            ValueError: If Rule 8 or Rule 9 is violated (includes rule number)
+            ConstitutionalError: If Rule 8 or Rule 9 is violated (includes rule number)
         """
         # Rule 8: Minimum 5 active models
         active_models = self.active_models
@@ -151,7 +151,7 @@ class Settings(BaseSettings):
                 f"Rule 8 Violation: Only {len(active_models)} active models configured. "
                 f"Minimum 5 required."
             )
-            raise ValueError(
+            raise ConstitutionalError(
                 f"Rule 8 Violation: System must have minimum 5 active LLM models. "
                 f"Found {len(active_models)} active models: {active_models}"
             )
@@ -166,7 +166,7 @@ class Settings(BaseSettings):
                     f"Rule 9 Violation: Role '{violating_role}' has {max_weight*100:.2f}% weight, "
                     f"exceeds 25% maximum"
                 )
-                raise ValueError(
+                raise ConstitutionalError(
                     f"Rule 9 Violation: No role may have more than 25% voting weight. "
                     f"Role '{violating_role}' has {max_weight*100:.2f}% weight"
                 )
