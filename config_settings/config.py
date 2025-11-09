@@ -68,6 +68,26 @@ class Settings(BaseSettings):
     # System Configuration
     debug: bool = Field(default=False, description="Debug mode")
     log_level: str = Field(default="INFO", description="Logging level")
+    log_file_path: str = Field(
+        default="logs/events.jsonl",
+        description="Path to the immutable JSONL event log file",
+    )
+    immutable_logging_enabled: bool = Field(
+        default=True,
+        description="Enable immutable logging chain and Arweave batching",
+    )
+    immutable_logging_mode: Literal["MOCK", "LIVE"] = Field(
+        default="MOCK",
+        description="Immutable logging sink mode",
+    )
+    immutable_batch_size: int = Field(
+        default=100,
+        description="Number of log entries per immutable batch",
+    )
+    arweave_gateway_url: Optional[str] = Field(
+        default=None,
+        description="Arweave gateway URL (required for LIVE mode)",
+    )
     arweave_enabled: bool = Field(default=False, description="Enable Arweave integration")
     
     # Database
@@ -221,6 +241,29 @@ class Settings(BaseSettings):
         if owner_auth_mode == "SOFTWARE" and not v:
             raise ConstitutionalError(
                 "Rule 10 Violation: OWNER_SIGNATURE_KEY required in SOFTWARE mode"
+            )
+        return v
+
+    @field_validator("immutable_batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: int) -> int:
+        """Ensure immutable batch size is at least one entry."""
+        if v < 1:
+            raise ConstitutionalError(
+                "Immutable batch size must be at least 1 entry."
+            )
+        return v
+
+    @field_validator("arweave_gateway_url")
+    @classmethod
+    def validate_gateway_requirement(
+        cls, v: Optional[str], info: ValidationInfo
+    ) -> Optional[str]:
+        """Require gateway URL when immutable logging is in LIVE mode."""
+        mode = info.data.get("immutable_logging_mode", "MOCK")
+        if mode.upper() == "LIVE" and not v:
+            raise ConstitutionalError(
+                "Arweave gateway URL is required when immutable logging mode is LIVE."
             )
         return v
 

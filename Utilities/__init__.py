@@ -1,6 +1,8 @@
-"""
-Utilities Package
+"""Utilities package compatibility wrapper."""
 
-This package provides utility functions for the AI Business Governance System.
-"""
+import sys
 
+from . import logger as _logger
+
+sys.modules.setdefault("utilities", sys.modules[__name__])
+sys.modules.setdefault("utilities.logger", _logger)

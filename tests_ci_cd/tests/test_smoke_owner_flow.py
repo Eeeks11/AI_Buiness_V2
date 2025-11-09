@@ -60,7 +60,7 @@ def test_owner_signature_enables_execution(
     """Owner signature should allow execution through governance cycle."""
     _configure_owner_environment(monkeypatch)
 
-    mocker.patch("Utilities.logger.log_event")
+    mocker.patch("utilities.logger.log_event")
     mocker.patch(
         "governance_layer.orchestrator.langgraph_state_machine.StateGraph",
         FakeStateGraph,

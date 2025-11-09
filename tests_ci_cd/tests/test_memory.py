@@ -18,6 +18,7 @@ import chromadb
 
 # Setup sys.path for imports from folders with spaces
 project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "memory_systems"))
 sys.path.insert(0, str(project_root / "governance_layer"))
 sys.path.insert(0, str(project_root / "config_settings"))
@@ -35,6 +36,8 @@ import episodic
 import semantic
 import context_builder
 import access_control
+
+from utilities import logger as immutable_logger
 
 # Import functions for convenience
 from episodic import log_event, get_recent_events, summarize_recent_activity
@@ -65,6 +68,21 @@ def temp_chroma_dir(tmp_path):
 
 
 @pytest.fixture
+def configure_immutable_logger(temp_log_dir, monkeypatch):
+    """Configure immutable logger to use temp directory for tests."""
+    def mock_path():
+        return temp_log_dir / "events.jsonl"
+
+    monkeypatch.setattr(immutable_logger, "_get_log_file_path", mock_path)
+    immutable_logger._log_file_path = None
+    immutable_logger._index_file_path = None
+    immutable_logger._last_chain_hash = None
+    immutable_logger._entries_since_last_pin = 0
+    immutable_logger._pending_pin_tx_ids.clear()
+    return mock_path()
+
+
+@pytest.fixture
 def mock_proposal():
     """Create mock proposal for testing."""
     return {
@@ -80,15 +98,10 @@ def mock_proposal():
 class TestEpisodicMemory:
     """Tests for episodic memory system."""
     
-    def test_episodic_logging(self, temp_log_dir, monkeypatch):
+    def test_episodic_logging(self, temp_log_dir, configure_immutable_logger):
         """Test that events are logged correctly."""
-        # Patch log file path
-        def mock_path():
-            return temp_log_dir / "events.jsonl"
-        
-        monkeypatch.setattr(episodic, "_get_log_file_path", mock_path)
-        monkeypatch.setattr(episodic, "_log_file_path", None)  # Reset global
-        
+        log_file_path = configure_immutable_logger
+
         # Log event
         entry = log_event(
             event_type="test_event",
@@ -103,7 +116,7 @@ class TestEpisodicMemory:
         assert entry["metadata"]["test"] is True
         
         # Verify file was created
-        log_file = temp_log_dir / "events.jsonl"
+        log_file = log_file_path
         assert log_file.exists()
         
         # Verify content
@@ -113,15 +126,10 @@ class TestEpisodicMemory:
             logged_entry = json.loads(lines[0])
             assert logged_entry["type"] == "test_event"
     
-    def test_episodic_retrieval(self, temp_log_dir, monkeypatch):
+    def test_episodic_retrieval(self, configure_immutable_logger):
         """Test that recent events can be retrieved."""
-        # Patch log file path
-        def mock_path():
-            return temp_log_dir / "events.jsonl"
-        
-        monkeypatch.setattr(episodic, "_get_log_file_path", mock_path)
-        monkeypatch.setattr(episodic, "_log_file_path", None)  # Reset global
-        
+        configure_immutable_logger
+
         # Log multiple events
         for i in range(5):
             log_event(
@@ -138,15 +146,10 @@ class TestEpisodicMemory:
         assert events[2]["type"] == "event_2"
     
     @patch("episodic.litellm.completion")
-    def test_summarize_recent_activity(self, mock_completion, temp_log_dir, monkeypatch):
+    def test_summarize_recent_activity(self, mock_completion, configure_immutable_logger):
         """Test that recent activity can be summarized."""
-        # Patch log file path
-        def mock_path():
-            return temp_log_dir / "events.jsonl"
-        
-        monkeypatch.setattr(episodic, "_get_log_file_path", mock_path)
-        monkeypatch.setattr(episodic, "_log_file_path", None)  # Reset global
-        
+        configure_immutable_logger
+
         # Mock LLM response
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
