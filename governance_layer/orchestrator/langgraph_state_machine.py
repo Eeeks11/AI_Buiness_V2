@@ -6,6 +6,7 @@ Each state transition includes constitutional validation gates.
 """
 
 # Standard library
+import copy
 import logging
 from typing import Dict, Optional, TypedDict
 from pathlib import Path
@@ -22,6 +23,7 @@ from models.core import ConstitutionalValidation, ConstitutionalError
 # Local - constitutional enforcement
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
 from constitution import validate_constitutional_compliance
+from owner_control.owner_gate.authorization import require_owner_approval
 
 # Local - memory systems
 sys.path.insert(0, str(project_root / "memory_systems" / "business_memory" / "memory"))
@@ -52,6 +54,8 @@ class GovernanceState(TypedDict):
     phase: str
     proposal: Dict
     owner_signature: Optional[str]
+    owner_id: Optional[str]
+    authorization_payload: Optional[Dict]
     context: Optional[Dict]
     ideation_result: Optional[Dict]
     deliberation_result: Optional[Dict]
@@ -59,6 +63,17 @@ class GovernanceState(TypedDict):
     execution_result: Optional[Dict]
     validation_results: Dict[str, ConstitutionalValidation]
     errors: list[str]
+
+
+def _build_authorization_payload(owner_id: Optional[str], proposal: Dict) -> Dict:
+    """Construct authorization payload for owner signature verification."""
+    payload: Dict = {
+        "action": "execute_decision",
+        "proposal": copy.deepcopy(proposal),
+    }
+    if owner_id is not None:
+        payload["owner_id"] = owner_id
+    return payload
 
 
 def conduct_ideation(state: GovernanceState) -> GovernanceState:
@@ -360,6 +375,7 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
         raise ConstitutionalError(f"Rule 6 Violation: Voting phase failed. Error: {e}")
 
 
+@require_owner_approval("execute_decision")
 def execute_decision(state: GovernanceState) -> GovernanceState:
     """
     Execute decision phase of governance cycle.
@@ -388,32 +404,6 @@ def execute_decision(state: GovernanceState) -> GovernanceState:
             },
             metadata={"function": "execute_decision"}
         )
-        
-        # Constitutional validation gate: Validate owner signature (Rule 10)
-        owner_signature = state.get("owner_signature")
-        if not owner_signature:
-            logger.error(
-                f"Rule 10 Violation: Execution attempted without owner signature",
-                extra={"proposal_id": state["proposal"].get("id")}
-            )
-            state["errors"].append("Execution requires owner signature")
-            raise ConstitutionalError(
-                "Rule 10 Violation: Execution requires owner authorization. "
-                "Owner retains ultimate authority and control."
-            )
-        
-        # Validate owner signature
-        sys.path.insert(0, str(project_root / "memory_systems" / "business_memory" / "memory"))
-        from access_control import check_owner_signature
-        if not check_owner_signature(owner_signature):
-            logger.error(
-                f"Rule 10 Violation: Invalid owner signature for execution",
-                extra={"proposal_id": state["proposal"].get("id")}
-            )
-            state["errors"].append("Invalid owner signature")
-            raise ConstitutionalError(
-                "Rule 10 Violation: Invalid owner signature. Execution requires valid owner authorization."
-            )
         
         validation = validate_constitutional_compliance(
             action={
@@ -460,7 +450,8 @@ def execute_decision(state: GovernanceState) -> GovernanceState:
 
 def run_governance_cycle(
     proposal: Dict,
-    owner_signature: Optional[str] = None
+    owner_signature: Optional[str] = None,
+    owner_id: Optional[str] = None,
 ) -> Dict:
     """
     Execute full governance cycle through state machine.
@@ -471,6 +462,7 @@ def run_governance_cycle(
     Args:
         proposal: Dictionary containing proposal details
         owner_signature: Optional owner signature for execution phase
+        owner_id: Optional owner identifier associated with the signature
         
     Returns:
         Complete session dictionary with all results
@@ -488,10 +480,14 @@ def run_governance_cycle(
     logger.info(f"Starting governance cycle for proposal {proposal.get('id', 'unknown')}")
     
     # Initialize state
+    authorization_payload = _build_authorization_payload(owner_id, proposal)
+
     initial_state: GovernanceState = {
         "phase": GovernancePhase.IDEATION,
         "proposal": proposal,
         "owner_signature": owner_signature,
+        "owner_id": owner_id,
+        "authorization_payload": authorization_payload,
         "context": None,
         "ideation_result": None,
         "deliberation_result": None,
