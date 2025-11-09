@@ -24,6 +24,8 @@ import uvicorn
 # Local - models first (single source of truth)
 # Add codebase_memory to path for imports
 project_root = Path(__file__).parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 codebase_memory = project_root / "memory_systems" / "codebase_memory"
 if str(codebase_memory) not in sys.path:
     sys.path.insert(0, str(codebase_memory))
@@ -38,11 +40,7 @@ config_module = importlib.util.module_from_spec(config_spec)
 config_spec.loader.exec_module(config_module)
 get_settings = config_module.get_settings
 
-logger_path = project_root / "Utilities" / "logger.py"
-logger_spec = importlib.util.spec_from_file_location("logger", logger_path)
-logger_module = importlib.util.module_from_spec(logger_spec)
-logger_spec.loader.exec_module(logger_module)
-log_event = logger_module.log_event
+from utilities.logger import log_event
 
 # Local - constitution
 constitution_path = project_root / "constitutional_layer_immutable"

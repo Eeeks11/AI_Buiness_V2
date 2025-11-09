@@ -14,6 +14,8 @@ import sys
 
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
 from models.core import (
     ConstitutionalError,
@@ -33,8 +35,7 @@ sys.path.insert(0, str(project_root / "governance_layer" / "roles"))
 from prompt_templates import load_role_configs
 
 # Local - utilities
-sys.path.insert(0, str(project_root / "Utilities"))
-from logger import log_event
+from utilities.logger import log_event
 
 logger = logging.getLogger(__name__)
 
