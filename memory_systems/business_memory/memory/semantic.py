@@ -189,7 +189,7 @@ def embed_decision(
         
         # Log embedding operation (Rule 6)
         try:
-            from Utilities.logger import log_event as base_log_event
+            from utilities.logger import log_event as base_log_event
             base_log_event(
                 event_type="semantic_memory_embed",
                 data={
@@ -276,7 +276,7 @@ def recall_relevant_decisions(query: str, n_results: int = 5) -> List[Dict]:
         
         # Log recall operation (Rule 6)
         try:
-            from Utilities.logger import log_event as base_log_event
+            from utilities.logger import log_event as base_log_event
             base_log_event(
                 event_type="semantic_memory_recall",
                 data={
@@ -334,7 +334,7 @@ def get_trend_analysis(topic: str) -> str:
     
     # Log LLM call attempt (Rule 6)
     try:
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="llm_call_attempt",
             data={
@@ -378,7 +378,7 @@ def get_trend_analysis(topic: str) -> str:
         
         # Log successful LLM call (Rule 6)
         try:
-            from Utilities.logger import log_event as base_log_event
+            from utilities.logger import log_event as base_log_event
             base_log_event(
                 event_type="llm_call_success",
                 data={
@@ -400,7 +400,7 @@ def get_trend_analysis(topic: str) -> str:
         
         # Log failed LLM call (Rule 6)
         try:
-            from Utilities.logger import log_event as base_log_event
+            from utilities.logger import log_event as base_log_event
             base_log_event(
                 event_type="llm_call_failure",
                 data={

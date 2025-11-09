@@ -105,7 +105,7 @@ def conduct_ideation(state: GovernanceState) -> GovernanceState:
         state["context"] = context
         
         # Log state entry (Rule 6)
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="governance_state_entry",
             data={
@@ -206,7 +206,7 @@ def conduct_deliberation(state: GovernanceState) -> GovernanceState:
             context = state["context"]
         
         # Log state entry (Rule 6)
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="governance_state_entry",
             data={
@@ -301,7 +301,7 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
     
     try:
         # Log state entry (Rule 6)
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="governance_state_entry",
             data={
@@ -395,7 +395,7 @@ def execute_decision(state: GovernanceState) -> GovernanceState:
     
     try:
         # Log state entry (Rule 6)
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="governance_state_entry",
             data={
@@ -521,7 +521,7 @@ def run_governance_cycle(
         final_state = app.invoke(initial_state)
         
         # Log completion (Rule 6)
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="governance_cycle_complete",
             data={

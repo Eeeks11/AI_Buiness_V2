@@ -211,7 +211,7 @@ def build_agent_context(
     
     # Log context build operation (Rule 6)
     try:
-        from Utilities.logger import log_event as base_log_event
+        from utilities.logger import log_event as base_log_event
         base_log_event(
             event_type="context_built",
             data={

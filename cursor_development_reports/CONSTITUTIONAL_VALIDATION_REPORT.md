@@ -29,7 +29,7 @@ Week 6 introduced governance intelligence (role prompts, board workflows, and 
 | **Rule 2 – Import Discipline** | ✅ | No duplicate model declarations; all governance modules import `Vote`, `VoteResult`, `Proposal`, `RoleType`, `ConstitutionalError` from `models.core`. |
 | **Rule 3 – Immutable Core Models** | ✅ | Existing frozen Pydantic models remain unchanged; new logic consumes them read‑only via `create_vote_result`. |
 | **Rule 4 – Error Handling Priority** | ✅ | Week 6 modules log and raise `ConstitutionalError` with explicit Rule references (e.g., weight violations, unknown roles). |
-| **Rule 5 – Logging Protection** | ✅ | Governance flows emit structured logs for prompts, deliberations, and vote tallies (`Utilities.logger.log_event`). |
+| **Rule 5 – Logging Protection** | ✅ | Governance flows emit structured logs for prompts, deliberations, and vote tallies (`utilities.logger.log_event`). |
 | **Rule 6 – Full Transparency** | ✅ | All governance operations log before validation; LLM router continues pre/post call logging. |
 | **Rule 7 – Validation Before Execution** | ✅ | Each governance phase calls `validate_constitutional_compliance()` with immutable log paths prior to returning outputs. |
 | **Rule 8 – Minimum Models** | ✅ | Role configuration provides eight distinct roles; voting rejects sessions with < 5 votes. |
@@ -91,7 +91,7 @@ All legacy modules (memory subsystems, orchestrator state machine, config, utili
 ## Forward Actions
 
 1. **Week 7–8:** Implement hardware-backed owner signature (YubiKey) in `access_control.check_owner_signature()`.
-2. **Week 9:** Add Arweave archival to `Utilities.logger.log_event` per existing TODO.
+2. **Week 9:** Add Arweave archival to `utilities.logger.log_event` per existing TODO.
 3. Continue monitoring active provider roster to maintain ≥ 5 models (Rule 8).
 
 No immediate remediation required.

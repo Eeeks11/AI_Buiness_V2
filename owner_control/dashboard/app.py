@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Mapping
 
 import streamlit as st
+
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+CODEBASE_ROOT = PROJECT_ROOT / "memory_systems" / "codebase_memory"
+
+for path in (PROJECT_ROOT, CODEBASE_ROOT):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from config_settings.config import get_settings
 from constitutional_layer_immutable.constitution import (
@@ -19,7 +30,7 @@ from owner_control.dashboard.components import (
     vote_summary,
 )
 from owner_control.owner_gate.signature import sign_action
-from Utilities.logger import get_recent_logs, log_event
+from utilities.logger import get_recent_logs, log_event
 
 logger = logging.getLogger(__name__)
 

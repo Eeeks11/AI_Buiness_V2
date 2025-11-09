@@ -26,29 +26,10 @@ sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
 from constitution import validate_constitutional_compliance
 
 # Local - utilities
-sys.path.insert(0, str(project_root / "Utilities"))
-from logger import log_event as base_log_event
+sys.path.insert(0, str(project_root))
+from utilities.logger import log_event as base_log_event, get_recent_logs
 
 logger = logging.getLogger(__name__)
-
-
-# Log file path
-_log_file_path: Optional[Path] = None
-
-
-def _get_log_file_path() -> Path:
-    """
-    Get the path to the events log file, creating directory if needed.
-    
-    Returns:
-        Path to audit_compliance/logs/events.jsonl
-    """
-    global _log_file_path
-    if _log_file_path is None:
-        log_dir = project_root / "audit_compliance" / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        _log_file_path = log_dir / "events.jsonl"
-    return _log_file_path
 
 
 def log_event(
@@ -104,29 +85,23 @@ def log_event(
         logger.error(f"Constitutional validation error for event {event_type}: {e}", exc_info=True)
         raise
     
-    log_path = _get_log_file_path()
-    
-    # Create log entry with timestamp
-    timestamp = datetime.now().isoformat()
-    log_entry = {
-        "timestamp": timestamp,
-        "type": event_type,
-        "data": data,
-        "metadata": metadata or {}
-    }
-    
-    # Append to JSONL file
     try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-        
-        logger.info(f"Logged episodic event: {event_type}", extra={
-            "event_type": event_type,
-            "timestamp": timestamp
-        })
-        
-        return log_entry
-        
+        entry = base_log_event(
+            event_type=event_type,
+            data=data,
+            metadata=metadata or {},
+        )
+        logger.info(
+            "Logged episodic event via immutable logger",
+            extra={
+                "event_type": event_type,
+                "timestamp": entry.get("timestamp"),
+                "chain_hash": entry.get("chain_hash"),
+            },
+        )
+        return entry
+    except ConstitutionalError:
+        raise
     except Exception as e:
         logger.error(f"Failed to log episodic event {event_type}: {e}", exc_info=True)
         raise
@@ -150,36 +125,10 @@ def get_recent_events(limit: int = 100) -> List[Dict]:
         >>> for event in events:
         ...     print(f"{event['timestamp']}: {event['type']}")
     """
-    log_path = _get_log_file_path()
-    
-    if not log_path.exists():
-        logger.warning(f"Episodic memory log file does not exist: {log_path}")
-        return []
-    
-    entries = []
     try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            # Read all lines
-            lines = f.readlines()
-            
-            # Parse JSON from each line (JSONL format)
-            for line in lines:
-                line = line.strip()
-                if line:
-                    try:
-                        entry = json.loads(line)
-                        entries.append(entry)
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse episodic memory entry: {e}")
-                        continue
-        
-        # Return most recent entries first
-        entries.reverse()
-        result = entries[:limit]
-        
-        logger.debug(f"Retrieved {len(result)} recent events from episodic memory")
-        return result
-        
+        entries = get_recent_logs(limit=limit)
+        logger.debug(f"Retrieved {len(entries)} recent events from episodic memory")
+        return entries
     except Exception as e:
         logger.error(f"Failed to read episodic memory log file: {e}", exc_info=True)
         return []
@@ -294,4 +243,4 @@ def summarize_recent_activity(events: List[Dict]) -> str:
             f"Rule 6 Violation: Failed to summarize recent activity. LLM call failed: {e}"
         )
     
-    # TODO: Week 9: Add Arweave batch pinning here
+    # TODO: Week 9 Arweave batch pinning now orchestrated centrally in utilities.logger

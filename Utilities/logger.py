@@ -1,134 +1,535 @@
-"""
-Logging Utility for Rule 6 Compliance (Full Transparency)
+from __future__ import annotations
 
-This module provides structured logging functionality to ensure all decisions,
-actions, and operations are logged to a persistent, accessible record.
+"""Immutable logging utilities with tamper-evident chaining and Arweave batching."""
 
-All log entries are written to logs/events.jsonl in JSONL format.
-"""
-
-# Standard library
 import json
 import logging
-from datetime import datetime
+from collections import deque
+from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Tuple
+
+from config_settings.config import get_settings
+from memory_systems.codebase_memory.immutable_storage.arweave_adapter import (
+    compute_batch_hash,
+    store_log_batch,
+)
+from memory_systems.codebase_memory.models.core import APIResponse, ConstitutionalError
 
 logger = logging.getLogger(__name__)
 
+GENESIS_HASH = "GENESIS"
+INDEX_FILENAME_SUFFIX = "_batch_index.json"
 
-# Log file path
 _log_file_path: Optional[Path] = None
+_index_file_path: Optional[Path] = None
+_last_chain_hash: Optional[str] = None
+_entries_since_last_pin: int = 0
+_pending_pin_tx_ids: Deque[str] = deque()
+
+
+def _project_root() -> Path:
+    """Return the project root directory."""
+    return Path(__file__).resolve().parent.parent
+
+
+def _stable_json_bytes(value: Any) -> bytes:
+    """Serialize value to stable JSON bytes for hashing."""
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def _compute_hash_from_dict(value: Dict[str, Any]) -> str:
+    """Compute SHA-256 hash from a dictionary using stable JSON encoding."""
+    return sha256(_stable_json_bytes(value)).hexdigest()
+
+
+def _resolve_log_file_path() -> Path:
+    """Resolve the log file path from configuration, ensuring parent directory exists."""
+    global _log_file_path
+
+    if _log_file_path is not None:
+        return _log_file_path
+
+    settings = get_settings()
+    configured_path = Path(settings.log_file_path)
+    if not configured_path.is_absolute():
+        configured_path = _project_root() / configured_path
+
+    configured_path.parent.mkdir(parents=True, exist_ok=True)
+    _log_file_path = configured_path
+    return _log_file_path
 
 
 def _get_log_file_path() -> Path:
+    """Expose log file path for compatibility with legacy tests."""
+    return _resolve_log_file_path()
+
+
+def _resolve_index_file_path() -> Path:
+    """Resolve the batch index file path stored alongside the log file."""
+    global _index_file_path
+
+    if _index_file_path is not None:
+        return _index_file_path
+
+    log_path = _get_log_file_path()
+    index_name = f"{log_path.stem}{INDEX_FILENAME_SUFFIX}"
+    _index_file_path = log_path.with_name(index_name)
+    return _index_file_path
+
+
+def _read_log_file() -> List[Dict[str, Any]]:
+    """Read all log entries from the JSONL log file."""
+    log_path = _get_log_file_path()
+    if not log_path.exists():
+        return []
+
+    entries: List[Dict[str, Any]] = []
+    with open(log_path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                logger.error("Malformed log entry detected", exc_info=True)
+                raise ConstitutionalError(
+                    f"Rule 6 Violation: Detected malformed log entry: {exc}"
+                ) from exc
+    return entries
+
+
+def _load_batch_index() -> Dict[str, Any]:
+    """Load the batch index file or return a default structure."""
+    index_path = _resolve_index_file_path()
+    if not index_path.exists():
+        return {"batches": [], "total_entries_pinned": 0}
+
+    try:
+        with open(index_path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except json.JSONDecodeError as exc:
+        logger.error("Malformed batch index file", exc_info=True)
+        raise ConstitutionalError(
+            f"Immutable index corruption detected: {exc}"
+        ) from exc
+
+
+def _write_batch_index(index_data: Dict[str, Any]) -> None:
+    """Persist batch index details to disk."""
+    index_path = _resolve_index_file_path()
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(index_path, "w", encoding="utf-8") as handle:
+        json.dump(index_data, handle, indent=2, ensure_ascii=False)
+
+
+def _initialize_state() -> None:
+    """Initialize cached state for chain continuity and batching."""
+    global _last_chain_hash, _entries_since_last_pin
+
+    entries = _read_log_file()
+    entries = _migrate_legacy_entries(entries)
+    if entries:
+        last_entry = entries[-1]
+        _last_chain_hash = last_entry.get("chain_hash", GENESIS_HASH)
+    else:
+        _last_chain_hash = None
+
+    index_data = _load_batch_index()
+    total_entries_pinned = int(index_data.get("total_entries_pinned", 0))
+    _entries_since_last_pin = max(len(entries) - total_entries_pinned, 0)
+
+
+def _migrate_legacy_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Upgrade legacy log entries lacking immutable chain fields."""
+    if not entries:
+        return entries
+
+    needs_migration = any(
+        "content_hash" not in entry or "chain_hash" not in entry or "prev_hash" not in entry
+        for entry in entries
+    )
+    if not needs_migration:
+        return entries
+
+    logger.info(
+        "Detected legacy log entries without immutable chain metadata. Migrating in-place.",
+        extra={"entry_count": len(entries)},
+    )
+
+    migrated_entries: List[Dict[str, Any]] = []
+    previous_chain_hash = GENESIS_HASH
+
+    for entry in entries:
+        payload = {
+            "timestamp": entry.get("timestamp"),
+            "type": entry.get("type"),
+            "data": entry.get("data"),
+            "metadata": entry.get("metadata") or {},
+        }
+        content_hash = _compute_hash_from_dict(payload)
+        chain_hash = sha256(f"{previous_chain_hash}:{content_hash}".encode("utf-8")).hexdigest()
+
+        entry["metadata"] = payload["metadata"]
+        entry["content_hash"] = content_hash
+        entry["prev_hash"] = previous_chain_hash
+        entry["chain_hash"] = chain_hash
+
+        migrated_entries.append(entry)
+        previous_chain_hash = chain_hash
+
+    log_path = _get_log_file_path()
+    with open(log_path, "w", encoding="utf-8") as handle:
+        for entry in migrated_entries:
+            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    logger.info(
+        "Legacy log migration completed.",
+        extra={
+            "updated_entries": len(migrated_entries),
+            "last_chain_hash": previous_chain_hash,
+        },
+    )
+    return migrated_entries
+
+
+def _pop_pending_pin_tx_id() -> Optional[str]:
+    """Return the next pending pin transaction ID, if any."""
+    if _pending_pin_tx_ids:
+        return _pending_pin_tx_ids.popleft()
+    return None
+
+
+def _append_pending_pin_tx_id(tx_id: str) -> None:
+    """Record a transaction ID to include on the next log event."""
+    _pending_pin_tx_ids.append(tx_id)
+
+
+def _build_chain_fields(
+    event_payload: Dict[str, Any],
+) -> Tuple[str, str, str]:
     """
-    Get the path to the events log file, creating directory if needed.
-    
+    Compute content and chain hashes for the provided event payload.
+
+    Args:
+        event_payload: Event payload excluding hash metadata.
+
     Returns:
-        Path to logs/events.jsonl
+        Tuple of (content_hash, prev_hash, chain_hash).
     """
-    global _log_file_path
-    if _log_file_path is None:
-        project_root = Path(__file__).parent.parent
-        log_dir = project_root / "logs"
-        log_dir.mkdir(exist_ok=True)
-        _log_file_path = log_dir / "events.jsonl"
-    return _log_file_path
+    global _last_chain_hash
+
+    content_hash = _compute_hash_from_dict(event_payload)
+    prev_hash = _last_chain_hash or GENESIS_HASH
+    chain_hash = sha256(f"{prev_hash}:{content_hash}".encode("utf-8")).hexdigest()
+    return content_hash, prev_hash, chain_hash
+
+
+def _build_manifest_entries(
+    entries: List[Dict[str, Any]]
+) -> List[Dict[str, str]]:
+    """Construct manifest entry summaries from full log entries."""
+    manifest_entries: List[Dict[str, str]] = []
+    for entry in entries:
+        manifest_entries.append(
+            {
+                "timestamp": entry.get("timestamp", ""),
+                "event_type": entry.get("type", ""),
+                "chain_hash": entry.get("chain_hash", ""),
+            }
+        )
+    return manifest_entries
+
+
+def _pin_pending_batches(batch_size: int) -> None:
+    """Attempt to pin batches while enough entries are pending."""
+    global _entries_since_last_pin
+
+    if batch_size < 1:
+        raise ConstitutionalError("Immutable batch size must be at least 1.")
+
+    if _entries_since_last_pin < batch_size:
+        return
+
+    entries = _read_log_file()
+    index_data = _load_batch_index()
+    total_entries_pinned = int(index_data.get("total_entries_pinned", 0))
+
+    while _entries_since_last_pin >= batch_size:
+        start_index = total_entries_pinned
+        end_index = start_index + batch_size
+
+        if end_index > len(entries):
+            logger.warning(
+                "Batch end index exceeds available entries",
+                extra={
+                    "batch_size": batch_size,
+                    "entries_available": len(entries),
+                    "start_index": start_index,
+                    "end_index": end_index,
+                },
+            )
+            break
+
+        batch_entries = entries[start_index:end_index]
+        manifest_entries = _build_manifest_entries(batch_entries)
+
+        manifest = {
+            "batch_id": f"{datetime.now(timezone.utc).isoformat()}_{end_index}",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "entries": manifest_entries,
+            "batch_hash": compute_batch_hash(manifest_entries),
+        }
+
+        logger.info(
+            "immutable_batch_store_attempt",
+            extra={
+                "batch_id": manifest["batch_id"],
+                "entry_count": len(manifest_entries),
+            },
+        )
+
+        try:
+            tx_id = store_log_batch(manifest)
+        except ConstitutionalError:
+            logger.exception(
+                "Immutable batch storage failed due to constitutional violation",
+                extra={"batch_id": manifest["batch_id"]},
+            )
+            raise
+        except Exception as exc:
+            logger.exception(
+                "Unexpected failure storing immutable batch",
+                extra={"batch_id": manifest["batch_id"]},
+            )
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Failed to persist immutable batch: {exc}"
+            ) from exc
+
+        logger.info(
+            "immutable_batch_store_result",
+            extra={
+                "batch_id": manifest["batch_id"],
+                "tx_id": tx_id,
+                "entry_count": len(manifest_entries),
+            },
+        )
+
+        batch_record = {
+            "batch_id": manifest["batch_id"],
+            "tx_id": tx_id,
+            "created_at": manifest["created_at"],
+            "entry_count": len(manifest_entries),
+            "last_chain_hash": batch_entries[-1].get("chain_hash"),
+            "batch_hash": manifest["batch_hash"],
+            "start_index": start_index,
+            "end_index": end_index,
+            "manifest_entries": manifest_entries,
+        }
+        index_data.setdefault("batches", []).append(batch_record)
+        total_entries_pinned = end_index
+        index_data["total_entries_pinned"] = total_entries_pinned
+        _entries_since_last_pin -= batch_size
+
+        _write_batch_index(index_data)
+        _append_pending_pin_tx_id(tx_id)
+
+        logger.info(
+            "immutable_batch_triggered",
+            extra={
+                "batch_id": manifest["batch_id"],
+                "tx_id": tx_id,
+                "total_entries_pinned": total_entries_pinned,
+            },
+        )
 
 
 def log_event(
     event_type: str,
-    data: Dict,
-    metadata: Optional[Dict] = None
-) -> None:
+    data: Dict[str, Any],
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
-    Log an event to the persistent event log (Rule 6: Full Transparency).
-    
-    All events are written to logs/events.jsonl in JSONL format with:
-    - timestamp: ISO format datetime
-    - type: Event type identifier
-    - data: Event data dictionary
-    - metadata: Optional metadata dictionary
-    
+    Log an event with tamper-evident chaining and optional immutable batching.
+
     Args:
-        event_type: Type identifier for the event (e.g., 'system_startup', 'proposal_created')
-        data: Dictionary containing event data
-        metadata: Optional dictionary with additional metadata
-        
-    Example:
-        >>> log_event(
-        ...     event_type="system_startup",
-        ...     data={"models": ["openai", "anthropic"], "rule_count": 10},
-        ...     metadata={"version": "week2", "environment": "development"}
-        ... )
+        event_type: Identifier describing the event.
+        data: Structured event payload.
+        metadata: Optional metadata for additional context.
+
+    Returns:
+        Dictionary representing the persisted event.
     """
+    global _last_chain_hash, _entries_since_last_pin
+
     log_path = _get_log_file_path()
-    
-    # Create log entry
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
+    metadata = metadata or {}
+
+    pending_tx_id = _pop_pending_pin_tx_id()
+
+    event_payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "type": event_type,
         "data": data,
-        "metadata": metadata or {}
+        "metadata": metadata,
     }
-    
-    # Append to JSONL file
-    try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-        
-        logger.debug(f"Logged event: {event_type}")
-    except Exception as e:
-        logger.error(f"Failed to log event {event_type}: {e}", exc_info=True)
-        raise
-    
-    # TODO: Week 9 - Add Arweave pinning here for immutable storage
+
+    content_hash, prev_hash, chain_hash = _build_chain_fields(event_payload)
+    event_record = dict(event_payload)
+    event_record.update(
+        {
+            "content_hash": content_hash,
+            "prev_hash": prev_hash,
+            "chain_hash": chain_hash,
+        }
+    )
+
+    if pending_tx_id:
+        event_record["last_pin_tx_id"] = pending_tx_id
+
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event_record, ensure_ascii=False) + "\n")
+
+    _last_chain_hash = chain_hash
+    _entries_since_last_pin += 1
+
+    settings = get_settings()
+    if settings.immutable_logging_enabled:
+        try:
+            _pin_pending_batches(settings.immutable_batch_size)
+        except ConstitutionalError:
+            raise
+        except Exception as exc:
+            logger.exception("Immutable batching failed", exc_info=True)
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Immutable batching failed: {exc}"
+            ) from exc
+
+    return event_record
 
 
-def get_recent_logs(limit: int = 100) -> List[Dict]:
+def get_recent_logs(limit: int = 100) -> List[Dict[str, Any]]:
+    """Return the most recent log entries, newest first."""
+    entries = _read_log_file()
+    if not entries:
+        return []
+    entries.reverse()
+    return entries[:limit]
+
+
+def export_logs() -> List[Dict[str, Any]]:
+    """Return all log entries in chronological order."""
+    return _read_log_file()
+
+
+def export_batch_index() -> Dict[str, Any]:
+    """Return the current batch index structure."""
+    return _load_batch_index()
+
+
+def validate_log_chain() -> APIResponse:
     """
-    Retrieve the most recent log entries from the event log.
-    
-    Args:
-        limit: Maximum number of entries to retrieve (default: 100)
-        
+    Validate the log chain for tampering.
+
     Returns:
-        List of log entry dictionaries, most recent first
-        
-    Example:
-        >>> logs = get_recent_logs(limit=10)
-        >>> for log in logs:
-        ...     print(f"{log['timestamp']}: {log['type']}")
+        APIResponse indicating validation result.
+
+    Raises:
+        ConstitutionalError: If tampering or corruption is detected.
     """
-    log_path = _get_log_file_path()
-    
-    if not log_path.exists():
-        logger.warning(f"Log file does not exist: {log_path}")
-        return []
-    
-    entries = []
-    try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            # Read all lines
-            lines = f.readlines()
-            
-            # Parse JSON from each line (JSONL format)
-            for line in lines:
-                line = line.strip()
-                if line:
-                    try:
-                        entry = json.loads(line)
-                        entries.append(entry)
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse log entry: {e}")
-                        continue
-        
-        # Return most recent entries first
-        entries.reverse()
-        return entries[:limit]
-        
-    except Exception as e:
-        logger.error(f"Failed to read log file: {e}", exc_info=True)
-        return []
+    logger.info("immutable_chain_validate_attempt")
+
+    entries = _read_log_file()
+    if not entries:
+        response = APIResponse.success_response(
+            message="No log entries found; chain is empty.",
+            data={"entry_count": 0},
+        )
+        logger.info(
+            "immutable_chain_validate_result",
+            extra={"status": "empty", "entry_count": 0},
+        )
+        return response
+
+    previous_chain_hash = GENESIS_HASH
+
+    for entry in entries:
+        expected_payload = {
+            "timestamp": entry.get("timestamp"),
+            "type": entry.get("type"),
+            "data": entry.get("data"),
+            "metadata": entry.get("metadata"),
+        }
+        expected_content_hash = _compute_hash_from_dict(expected_payload)
+        stored_content_hash = entry.get("content_hash")
+        stored_prev_hash = entry.get("prev_hash")
+        stored_chain_hash = entry.get("chain_hash")
+
+        if expected_content_hash != stored_content_hash:
+            logger.error(
+                "Content hash mismatch detected",
+                extra={
+                    "timestamp": entry.get("timestamp"),
+                    "event_type": entry.get("type"),
+                },
+            )
+            raise ConstitutionalError(
+                "Immutable log tampering detected: content hash mismatch."
+            )
+
+        computed_chain_hash = sha256(
+            f"{previous_chain_hash}:{stored_content_hash}".encode("utf-8")
+        ).hexdigest()
+
+        if stored_prev_hash != previous_chain_hash:
+            logger.error(
+                "Previous hash mismatch detected",
+                extra={
+                    "timestamp": entry.get("timestamp"),
+                    "event_type": entry.get("type"),
+                },
+            )
+            raise ConstitutionalError(
+                "Immutable log tampering detected: previous hash mismatch."
+            )
+
+        if stored_chain_hash != computed_chain_hash:
+            logger.error(
+                "Chain hash mismatch detected",
+                extra={
+                    "timestamp": entry.get("timestamp"),
+                    "event_type": entry.get("type"),
+                },
+            )
+            raise ConstitutionalError(
+                "Immutable log tampering detected: chain hash mismatch."
+            )
+
+        previous_chain_hash = stored_chain_hash
+
+    response = APIResponse.success_response(
+        message="Immutable chain validated successfully.",
+        data={
+            "entry_count": len(entries),
+            "last_chain_hash": previous_chain_hash,
+        },
+    )
+
+    logger.info(
+        "immutable_chain_validate_result",
+        extra={
+            "status": "validated",
+            "entry_count": len(entries),
+            "last_chain_hash": previous_chain_hash,
+        },
+    )
+    return response
+
 
