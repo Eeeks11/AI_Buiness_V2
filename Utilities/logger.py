@@ -370,6 +370,8 @@ def log_event(
     global _last_chain_hash, _entries_since_last_pin
 
     log_path = _get_log_file_path()
+    if _last_chain_hash is None or not log_path.exists():
+        _initialize_state()
     metadata = metadata or {}
 
     pending_tx_id = _pop_pending_pin_tx_id()
