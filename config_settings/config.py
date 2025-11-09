@@ -10,11 +10,11 @@ All configuration is loaded from environment variables via .env file.
 # Standard library
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 # Third-party
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator, ConfigDict
+from pydantic import Field, field_validator, ConfigDict, ValidationInfo
 
 # Local - models first (single source of truth)
 import sys
@@ -26,7 +26,7 @@ codebase_memory = project_root / "memory_systems" / "codebase_memory"
 if str(codebase_memory) not in sys.path:
     sys.path.insert(0, str(codebase_memory))
 
-from models.core import ConstitutionalError, ConstitutionalRule, RoleType
+from models.core import ConstitutionalError, RoleType
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,22 @@ class Settings(BaseSettings):
     mistral_api_key: Optional[str] = Field(None, description="Mistral API key")
     
     # Owner Authentication (Rule 10)
-    owner_id: Optional[str] = Field(None, description="Owner identifier")
-    owner_signature_key: Optional[str] = Field(None, description="Owner signing key")
+    owner_auth_mode: Literal["SOFTWARE", "HARDWARE", "MOCK"] = Field(
+        default="SOFTWARE",
+        description="Owner authorization mode",
+    )
+    owner_id: str = Field(
+        default="owner_admin",
+        description="Owner identifier for authorization checks",
+    )
+    owner_signature_key: str = Field(
+        default="owner_signature_key_development_default_value_32_chars",
+        description="Owner signing key (required in SOFTWARE mode)",
+    )
+    owner_gate_enabled: bool = Field(
+        default=True,
+        description="Toggle owner gate enforcement (testing only)",
+    )
     
     # System Configuration
     debug: bool = Field(default=False, description="Debug mode")
@@ -191,6 +205,24 @@ class Settings(BaseSettings):
             f"Constitutional compliance validated: {len(active_models)} active models, "
             f"max weight {max(weights.values())*100:.2f}%"
         )
+
+    @field_validator("owner_signature_key")
+    @classmethod
+    def validate_signature_key_required(
+        cls, v: str, info: ValidationInfo
+    ) -> str:
+        """
+        Ensure signature key presence in SOFTWARE mode (Rule 10).
+
+        Raises:
+            ConstitutionalError: If SOFTWARE mode lacks signature key.
+        """
+        owner_auth_mode = info.data.get("owner_auth_mode", "SOFTWARE")
+        if owner_auth_mode == "SOFTWARE" and not v:
+            raise ConstitutionalError(
+                "Rule 10 Violation: OWNER_SIGNATURE_KEY required in SOFTWARE mode"
+            )
+        return v
 
 
 # Global settings instance with auto-validation
