@@ -47,6 +47,17 @@ The system is organized into distinct layers, each with specific responsibilitie
     └── tests/                       # All test files
 ```
 
+## Development Progress (Weeks 1-12)
+
+| Week | Phase | Status | Key Deliverables |
+|------|-------|--------|------------------|
+| 1-2 | Foundation | ✅ Complete | Constitution, Models, Config, Tests |
+| 3-5 | Memory Systems | ✅ Complete | Episodic, Semantic, Context, Access Control |
+| 6 | Governance | ✅ Complete | Board Roles, Voting, LLM Router |
+| 7-8 | Owner Authorization | ✅ Complete | Signature, Gate, Approval Dashboard |
+| 9 | Immutable Logging | ✅ Complete | Arweave Integration, Audit Dashboard |
+| 10-12 | Testing & Hardening | ✅ Complete | Integration Tests, Retrospectives, Docs |
+
 ## The 10 Constitutional Rules
 
 ### Rule 1: Access Control
@@ -79,89 +90,83 @@ No Board member may have more than 25% of the voting weight, ensuring no single 
 ### Rule 10: Human Ownership Lock
 The owner retains ultimate authority and control over the AI and its operations.
 
-## Setup Instructions
+## Governance Workflow
 
-### Prerequisites
-
-- Python 3.10 or higher
-- pip package manager
-
-### Installation
-
-1. **Clone the repository** (if applicable):
-   ```bash
-   git clone <repository-url>
-   cd "AI Business V2"
-   ```
-
-2. **Create a virtual environment** (recommended):
-   ```bash
-   python -m venv venv
-   
-   # On Windows:
-   venv\Scripts\activate
-   
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your API keys and configuration
-   ```
-
-5. **Verify installation**:
-   ```bash
-   pytest Tests\ &\ CI-CD/tests/ -v
-   ```
-
-### Configuration
-
-The system requires the following environment variables (see `.env.example` for template):
-
-- **LLM API Keys** (Rule 8: Minimum 5 required):
-  - `OPENAI_API_KEY`
-  - `ANTHROPIC_API_KEY`
-  - `GOOGLE_API_KEY`
-  - `XAI_API_KEY`
-  - `MISTRAL_API_KEY`
-
-- **Owner Authentication** (Rule 10):
-  - `OWNER_ID`
-  - `OWNER_SIGNATURE_KEY`
-
-- **System Configuration**:
-  - `DEBUG` (default: `false`)
-  - `LOG_LEVEL` (default: `INFO`)
-  - `ARWEAVE_ENABLED` (default: `false`)
-
-- **Database** (for future use):
-  - `DATABASE_URL` (default: `sqlite:///./ai_business.db`)
-
-### Running the System
-
-Start the FastAPI application:
-
-```bash
-python main.py
+```
+┌─────────────┐
+│  Proposal   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐     ┌──────────────────┐
+│  Ideation   │────▶│ Memory Context   │
+└──────┬──────┘     │ (History + Rules)│
+       │            └──────────────────┘
+       ▼
+┌─────────────┐
+│Deliberation │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐     ┌──────────────────┐
+│   Voting    │────▶│ Rule 9 Check     │
+└──────┬──────┘     │ (25% weight cap) │
+       │            └──────────────────┘
+       ▼
+┌─────────────┐     ┌──────────────────┐
+│  Owner Gate │────▶│ Rule 10 Check    │
+└──────┬──────┘     │ (Signature Auth) │
+       │            └──────────────────┘
+       ▼
+┌─────────────┐     ┌──────────────────┐
+│  Execution  │────▶│ Immutable Log    │
+└─────────────┘     │ (Arweave Chain)  │
+                    └──────────────────┘
 ```
 
-The system will:
-1. Load and validate constitutional rules
-2. Verify active models (must be 5+ for Rule 8)
-3. Validate vote weights (all ≤ 0.25 for Rule 9)
-4. Log system startup event
-5. Start the API server on `http://localhost:8000`
+## Quick Start
 
-**Health Check**:
-- `GET /` - System status
-- `GET /health` - Health check endpoint
+### Installation
+```bash
+# Clone repository
+git clone <repository-url>
+cd AI_Business_V2
+
+# Create virtual environment
+python -m venv venv
+
+# Activate (Windows)
+.\venv\Scripts\activate
+
+# Activate (Mac/Linux)
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+### Health Check
+```bash
+python scripts/health_check.py
+```
+
+### Run Dashboards
+```bash
+# Approval Dashboard (owner actions)
+streamlit run owner_control/dashboard/approval_app.py
+
+# Audit Dashboard (view logs)
+streamlit run owner_control/dashboard/audit_app.py
+```
+
+### Run Tests
+```bash
+pytest tests_ci_cd/tests/ -v
+```
 
 ## Development Guidelines
 
@@ -292,6 +297,16 @@ The `test_week2.py` file includes:
 - Log entry format validation
 - Recent logs retrieval
 - All 10 constitutional rules loaded
+
+## ⚠️ Constitutional Immutability
+
+Files in `constitutional_layer_immutable/` **cannot be modified** without:
+
+1. Formal constitutional proposal
+2. Owner approval via signed authorization
+3. Documentation of rationale
+
+Any attempt to modify these files will be blocked by CI/CD (Rule 3).
 
 ## License
 

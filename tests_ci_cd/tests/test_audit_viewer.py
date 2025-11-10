@@ -63,8 +63,7 @@ def test_validate_chain_button_calls_validator(audit_viewer_module, mock_streaml
 
     monkeypatch.setattr(audit_viewer_module, "export_logs", MagicMock(return_value=sample_logs))
     monkeypatch.setattr(audit_viewer_module, "export_batch_index", MagicMock(return_value=sample_index))
-    mock_response = MagicMock(success=True, data={"entry_count": 1})
-    validator = MagicMock(return_value=mock_response)
+    validator = MagicMock(return_value=True)
     monkeypatch.setattr(audit_viewer_module, "validate_log_chain", validator)
     monkeypatch.setattr(audit_viewer_module, "_log_dashboard_event", MagicMock())
 
