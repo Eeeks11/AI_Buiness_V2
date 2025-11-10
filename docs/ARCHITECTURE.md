@@ -11,7 +11,7 @@ graph TD
     A --> D[Owner Control]
 
     B --> E[Business Memory<br/>Episodic + Semantic]
-    B --> F[Codebase Memory<br/>models/core.py]
+    B --> F[Core Models<br/>models/core.py]
 
     C --> G[Orchestrator<br/>State Machine]
     C --> H[Board Voting<br/>Weighted + Veto]
@@ -31,7 +31,7 @@ graph TD
   `constitutional_layer_immutable/` embeds non-modifiable rule enforcement. `constitution.py` centralizes validation and raises `ConstitutionalError` on violations.
 
 - **Memory Systems**  
-  Business memory combines episodic and semantic stores for contextual reasoning. Codebase memory standardizes models, response structures, and immutable logging adapters.
+  Business memory combines episodic and semantic stores for contextual reasoning. Immutable storage adapters live under `memory_systems/codebase_memory/immutable_storage`, while all shared models reside in `models/core.py`.
 
 - **Governance Layer**  
   LangGraph-based state machine (`governance_layer/orchestrator/langgraph_state_machine.py`) drives proposals through ideation, deliberation, voting, and execution.

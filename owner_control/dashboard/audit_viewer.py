@@ -13,14 +13,11 @@ import streamlit as st
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CODEBASE_ROOT = PROJECT_ROOT / "memory_systems" / "codebase_memory"
 
-for path in (PROJECT_ROOT, CODEBASE_ROOT):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 from utilities.logger import (
     export_batch_index,
     export_logs,

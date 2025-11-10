@@ -16,8 +16,16 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
-from models.core import ConstitutionalError, Proposal, RoleType, Vote, VoteResult, VoteType
+from models.core import (
+    BoardMember,
+    BoardSession,
+    ConstitutionalError,
+    Proposal,
+    RoleType,
+    Vote,
+    VoteResult,
+    VoteType,
+)
 
 # Local - constitutional enforcement
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
@@ -263,21 +271,35 @@ def conduct_vote(deliberation_output: Dict[str, Any]) -> VoteResult:
         deliberation_responses = deliberation_output.get("deliberation_responses", {})
 
         votes: List[Vote] = []
+        board_members: List[BoardMember] = []
         for role, config in role_configs.items():
             vote_type = _determine_vote_type(role, vote_directives)
 
             rationale = deliberation_responses.get(role, "")
-            votes.append(
-                Vote(
-                    member_id=f"{role.lower()}_agent",
-                    role=RoleType(role),
-                    vote_type=vote_type,
-                    weight=float(config.get("voting_weight", 0.0)),
-                    rationale=rationale[:500]
+            member_vote = Vote(
+                member_id=f"{role.lower()}_agent",
+                role=RoleType(role),
+                vote_type=vote_type,
+                weight=float(config.get("voting_weight", 0.0)),
+                rationale=rationale[:500]
+            )
+            votes.append(member_vote)
+            board_members.append(
+                BoardMember(
+                    member_id=member_vote.member_id,
+                    role=member_vote.role,
+                    model_name=config.get("model_name", f"{role.lower()}_delegate"),
+                    voting_weight=member_vote.weight,
+                    is_active=True,
                 )
             )
 
         vote_result = tally_votes(votes=votes, roles=role_configs, proposal_id=proposal_id)
+
+        board_session_snapshot = BoardSession(
+            id=vote_result.session_id,
+            members=board_members,
+        )
 
         try:
             log_event(
@@ -285,6 +307,7 @@ def conduct_vote(deliberation_output: Dict[str, Any]) -> VoteResult:
                 data={
                     "proposal_id": proposal_id,
                     "vote_count": len(votes),
+                    "active_members": len(board_session_snapshot.get_active_members()),
                     "timestamp": datetime.now().isoformat()
                 },
                 metadata={"function": "conduct_vote"}

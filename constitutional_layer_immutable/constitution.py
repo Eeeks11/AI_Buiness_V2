@@ -9,23 +9,7 @@ All data structures should use Pydantic models from models/core.py.
 """
 
 # Import ConstitutionalError from models/core.py (single source of truth)
-# Add path to allow imports from new structure
-import sys
-from pathlib import Path
-
-# Add codebase_memory to path for imports
-project_root = Path(__file__).parent.parent.parent
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
-
-try:
-    from models.core import ConstitutionalError
-except ImportError:
-    # Fallback for development/testing
-    import sys
-    sys.path.insert(0, str(project_root))
-    from models.core import ConstitutionalError
+from models.core import ConstitutionalError, ConstitutionalRule
 
 # Re-export for backward compatibility
 __all__ = [
@@ -542,7 +526,6 @@ def validate_constitutional_compliance(
     """
     from models.core import (
         ConstitutionalValidation,
-        ConstitutionalRule,
         ProposalStatus
     )
     import logging

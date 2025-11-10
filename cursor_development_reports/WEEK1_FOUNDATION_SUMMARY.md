@@ -22,7 +22,7 @@
 **Status:** Production-ready, comprehensive, and prescriptive
 
 ### 2. models/core.py ✅
-**Location:** `memory_systems/codebase_memory/models/core.py`
+**Location:** `models/core.py`
 
 **Models Added:**
 - ✅ `ConstitutionalRule` enum - All 10 rules enumerated
@@ -154,7 +154,7 @@
 ## Key Features
 
 ### Single Source of Truth ✅
-- All models in `memory_systems/codebase_memory/models/core.py`
+- All models in `models/core.py`
 - No duplicate definitions
 - All imports from models/core.py
 

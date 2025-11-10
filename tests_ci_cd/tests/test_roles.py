@@ -14,7 +14,6 @@ import pytest
 # Path setup
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "governance_layer" / "roles"))
-sys.path.insert(0, str(PROJECT_ROOT / "memory_systems" / "codebase_memory"))
 
 # Local imports
 from models.core import ConstitutionalError

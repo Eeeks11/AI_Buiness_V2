@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Set
 
 import pytest
 
-from memory_systems.codebase_memory.models.core import (
+from models.core import (
     ConstitutionalError,
     ConstitutionalRule,
     ConstitutionalValidation,

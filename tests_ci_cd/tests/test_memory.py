@@ -26,7 +26,6 @@ sys.path.insert(0, str(project_root / "config_settings"))
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
 
 # Local - models first (single source of truth)
-sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
 from models.core import ConstitutionalError
 
 # Local - memory systems (import directly from path)

@@ -16,7 +16,6 @@ def _ensure_project_paths_on_sys_path() -> None:
 
     paths_to_add = [
         project_root,
-        project_root / "memory_systems" / "codebase_memory",
     ]
 
     for path in paths_to_add:

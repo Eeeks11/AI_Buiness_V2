@@ -11,18 +11,15 @@ import streamlit as st
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CODEBASE_ROOT = PROJECT_ROOT / "memory_systems" / "codebase_memory"
 
-for path in (PROJECT_ROOT, CODEBASE_ROOT):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from config_settings.config import get_settings
 from constitutional_layer_immutable.constitution import (
     validate_constitutional_compliance,
 )
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 from owner_control.dashboard.components import (
     constitutional_compliance_indicator,
     execution_log_viewer,

@@ -6,9 +6,7 @@ from typing import Any, Dict
 import pytest
 
 from constitutional_layer_immutable import constitution
-from memory_systems.codebase_memory.models.core import (
-    ConstitutionalValidation,
-)
+from models.core import ConstitutionalValidation
 
 
 def _context_stub() -> Dict[str, Any]:

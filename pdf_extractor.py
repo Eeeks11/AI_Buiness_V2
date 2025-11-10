@@ -14,9 +14,8 @@ import pypdf
 
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from models.core import ConstitutionalError
 

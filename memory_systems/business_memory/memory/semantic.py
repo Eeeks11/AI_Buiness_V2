@@ -21,7 +21,6 @@ import litellm
 
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
 from models.core import ConstitutionalRule, ConstitutionalValidation, ConstitutionalError
 
 # Local - constitutional enforcement

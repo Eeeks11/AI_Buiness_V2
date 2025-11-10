@@ -15,12 +15,14 @@ The system is organized into distinct layers, each with specific responsibilitie
 │   ├── CODING_CONSTITUTION.md      # Engineering standards (immutable)
 │   └── constitution.py              # Enforcement functions (immutable)
 │
+├── models/
+│   └── core.py                      # ALL models (single source of truth)
+│
 ├── memory_systems/
 │   ├── business_memory/
 │   │   └── memory/                  # Episodic, semantic, context, access
 │   └── codebase_memory/
-│       └── models/
-│           └── core.py              # ALL models (single source of truth)
+│       └── immutable_storage/       # Version control
 │
 ├── governance_layer/
 │   ├── orchestrator/                # Board orchestration
@@ -156,11 +158,11 @@ python scripts/health_check.py
 
 ### Run Dashboards
 ```bash
-# Approval Dashboard (owner actions)
-streamlit run owner_control/dashboard/approval_app.py
+# Owner Oversight Dashboard (approvals + status)
+streamlit run owner_control/dashboard/app.py
 
-# Audit Dashboard (view logs)
-streamlit run owner_control/dashboard/audit_app.py
+# Immutable Audit Log Viewer
+streamlit run owner_control/dashboard/audit_viewer.py
 ```
 
 ### Run Tests

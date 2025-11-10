@@ -8,7 +8,7 @@ import pytest
 
 from pytest_mock import MockerFixture
 from config_settings import config as config_module
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 from owner_control.owner_gate.authorization import require_owner_approval
 from owner_control.owner_gate.signature import sign_action, verify_owner_signature
 

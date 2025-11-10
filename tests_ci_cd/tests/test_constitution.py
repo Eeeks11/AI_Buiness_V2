@@ -11,12 +11,9 @@ import pytest
 # Add paths for imports
 project_root = Path(__file__).parent.parent.parent
 constitutional_layer = project_root / "constitutional_layer_immutable"
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
 
 if str(constitutional_layer) not in sys.path:
     sys.path.insert(0, str(constitutional_layer))
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
 
 from constitution import (
     ConstitutionalError,

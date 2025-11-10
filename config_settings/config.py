@@ -9,7 +9,6 @@ All configuration is loaded from environment variables via .env file.
 
 # Standard library
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Literal
 
 # Third-party
@@ -17,15 +16,6 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, ConfigDict, ValidationInfo
 
 # Local - models first (single source of truth)
-import sys
-from pathlib import Path as PathLib
-
-# Add codebase_memory to path for imports
-project_root = PathLib(__file__).parent.parent
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
-
 from models.core import ConstitutionalError, RoleType
 
 logger = logging.getLogger(__name__)

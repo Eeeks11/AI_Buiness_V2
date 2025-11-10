@@ -233,10 +233,12 @@ def execute_critical_action(proposal: Proposal, owner_authorized: bool) -> None:
 │   ├── CODING_CONSTITUTION.md  # This file (immutable)
 │   ├── constitution.py          # Constitutional enforcement (immutable)
 │   └── .cursorrules             # Cursor AI instructions
+├── models/
+│   └── core.py              # Single source of truth for all data models
+│
 ├── memory_systems/
 │   └── codebase_memory/
-│       └── models/
-│           └── core.py          # Single source of truth for all data models
+│       └── immutable_storage/
 └── tests_ci_cd/
     └── tests/
         ├── test_constitution.py
@@ -386,13 +388,14 @@ constitutional_layer_immutable/
   ├── constitution.py              # Enforcement functions (immutable)
   └── .cursorrules                 # Cursor AI instructions
 
+models/
+  └── core.py                      # ALL models (single source of truth)
+
 memory_systems/
   ├── business_memory/
   │   └── memory/                  # Episodic, semantic, context, access
   └── codebase_memory/
-      └── models/
-          ├── __init__.py          # Package exports
-          └── core.py              # ALL models (single source of truth)
+      └── immutable_storage/       # Versioned storage adapters
 
 governance_layer/
   ├── orchestrator/                # Board orchestration
