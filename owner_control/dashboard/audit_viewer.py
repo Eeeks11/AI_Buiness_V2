@@ -20,7 +20,7 @@ for path in (PROJECT_ROOT, CODEBASE_ROOT):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-from memory_systems.codebase_memory.models.core import APIResponse, ConstitutionalError
+from memory_systems.codebase_memory.models.core import ConstitutionalError
 from utilities.logger import (
     export_batch_index,
     export_logs,
@@ -199,12 +199,10 @@ def main() -> None:
     if st.button("Validate Chain Integrity"):
         _log_dashboard_event("dashboard_audit_validate_clicked", {})
         try:
-            validation: APIResponse = validate_log_chain()
-            if validation.success:
-                st.success(
-                    f"✅ Chain valid. Entries: {validation.data.get('entry_count', 0)}"
-                )
-            else:
+            valid = validate_log_chain()
+            if valid:
+                st.success(f"✅ Chain valid. Entries: {len(logs)}")
+            else:  # pragma: no cover - safeguard for unexpected false
                 st.error("❌ Chain validation reported issues.")
         except ConstitutionalError as exc:
             st.error(f"❌ Chain validation failed: {exc}")

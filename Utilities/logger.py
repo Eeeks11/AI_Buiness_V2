@@ -15,7 +15,7 @@ from memory_systems.codebase_memory.immutable_storage.arweave_adapter import (
     compute_batch_hash,
     store_log_batch,
 )
-from memory_systems.codebase_memory.models.core import APIResponse, ConstitutionalError
+from memory_systems.codebase_memory.models.core import ConstitutionalError
 
 logger = logging.getLogger(__name__)
 
@@ -436,33 +436,60 @@ def export_batch_index() -> Dict[str, Any]:
     return _load_batch_index()
 
 
-def validate_log_chain() -> APIResponse:
+def validate_log_chain() -> bool:
     """
-    Validate the log chain for tampering.
+    Validate integrity of the immutable audit log chain.
+
+    Verifies:
+        - All log entries are present and contain valid JSON
+        - Entries are ordered chronologically by timestamp
+        - Chain integrity is maintained without tampering
 
     Returns:
-        APIResponse indicating validation result.
+        bool: True if the log chain is valid.
 
     Raises:
-        ConstitutionalError: If tampering or corruption is detected.
+        ConstitutionalError: If the audit log is missing or corruption is detected.
     """
-    logger.info("immutable_chain_validate_attempt")
+    log_path = _get_log_file_path()
+    if not log_path.exists():
+        raise ConstitutionalError("Rule 6 Violation: Audit log missing")
 
-    entries = _read_log_file()
-    if not entries:
-        response = APIResponse.success_response(
-            message="No log entries found; chain is empty.",
-            data={"entry_count": 0},
-        )
-        logger.info(
-            "immutable_chain_validate_result",
-            extra={"status": "empty", "entry_count": 0},
-        )
-        return response
+    entries: List[Dict[str, Any]] = []
+    with open(log_path, "r", encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ConstitutionalError(
+                    f"Rule 6 Violation: Log corrupted at line {line_number}: {exc}"
+                ) from exc
+            entries.append(entry)
 
     previous_chain_hash = GENESIS_HASH
 
-    for entry in entries:
+    for index, entry in enumerate(entries):
+        try:
+            timestamp = datetime.fromisoformat(
+                str(entry["timestamp"]).replace("Z", "+00:00")
+            )
+        except (KeyError, ValueError) as exc:
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Invalid timestamp at log index {index + 1}: {exc}"
+            ) from exc
+
+        if index > 0:
+            previous_timestamp = datetime.fromisoformat(
+                str(entries[index - 1]["timestamp"]).replace("Z", "+00:00")
+            )
+            if timestamp < previous_timestamp:
+                raise ConstitutionalError(
+                    f"Rule 6 Violation: Log entries not chronological (line {index + 1})"
+                )
+
         expected_payload = {
             "timestamp": entry.get("timestamp"),
             "type": entry.get("type"),
@@ -474,64 +501,40 @@ def validate_log_chain() -> APIResponse:
         stored_prev_hash = entry.get("prev_hash")
         stored_chain_hash = entry.get("chain_hash")
 
-        if expected_content_hash != stored_content_hash:
-            logger.error(
-                "Content hash mismatch detected",
-                extra={
-                    "timestamp": entry.get("timestamp"),
-                    "event_type": entry.get("type"),
-                },
-            )
+        if stored_content_hash != expected_content_hash:
             raise ConstitutionalError(
-                "Immutable log tampering detected: content hash mismatch."
+                "Rule 6 Violation: Immutable log tampering detected (content hash mismatch)"
             )
 
         computed_chain_hash = sha256(
-            f"{previous_chain_hash}:{stored_content_hash}".encode("utf-8")
+            f"{previous_chain_hash}:{expected_content_hash}".encode("utf-8")
         ).hexdigest()
 
-        if stored_prev_hash != previous_chain_hash:
-            logger.error(
-                "Previous hash mismatch detected",
-                extra={
-                    "timestamp": entry.get("timestamp"),
-                    "event_type": entry.get("type"),
-                },
-            )
-            raise ConstitutionalError(
-                "Immutable log tampering detected: previous hash mismatch."
-            )
+        if index == 0:
+            if stored_prev_hash not in (None, "", GENESIS_HASH):
+                raise ConstitutionalError(
+                    "Rule 6 Violation: Immutable log tampering detected (invalid genesis previous hash)"
+                )
+        else:
+            if stored_prev_hash != previous_chain_hash:
+                raise ConstitutionalError(
+                    "Rule 6 Violation: Immutable log tampering detected (previous hash mismatch)"
+                )
 
         if stored_chain_hash != computed_chain_hash:
-            logger.error(
-                "Chain hash mismatch detected",
-                extra={
-                    "timestamp": entry.get("timestamp"),
-                    "event_type": entry.get("type"),
-                },
-            )
             raise ConstitutionalError(
-                "Immutable log tampering detected: chain hash mismatch."
+                "Rule 6 Violation: Immutable log tampering detected (chain hash mismatch)"
             )
 
         previous_chain_hash = stored_chain_hash
 
-    response = APIResponse.success_response(
-        message="Immutable chain validated successfully.",
-        data={
-            "entry_count": len(entries),
-            "last_chain_hash": previous_chain_hash,
+    log_event(
+        "log_chain_validated",
+        {
+            "entries": len(entries),
+            "status": "valid",
         },
     )
-
-    logger.info(
-        "immutable_chain_validate_result",
-        extra={
-            "status": "validated",
-            "entry_count": len(entries),
-            "last_chain_hash": previous_chain_hash,
-        },
-    )
-    return response
+    return True
 
 

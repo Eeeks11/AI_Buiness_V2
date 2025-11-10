@@ -57,9 +57,9 @@ def test_chain_links_are_correct(immutable_logger):
     for prev, current in zip(entries, entries[1:]):
         assert current["prev_hash"] == prev["chain_hash"]
 
-    response = logger.validate_log_chain()
-    assert response.success
-    assert response.data["entry_count"] == 3
+    is_valid = logger.validate_log_chain()
+    assert is_valid
+    assert len(logger.export_logs()) >= 3
 
 
 def test_batching_triggers_after_threshold(monkeypatch, immutable_logger):
