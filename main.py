@@ -22,13 +22,9 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Local - models first (single source of truth)
-# Add codebase_memory to path for imports
 project_root = Path(__file__).parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
-if str(codebase_memory) not in sys.path:
-    sys.path.insert(0, str(codebase_memory))
 
 from models.core import ConstitutionalRule
 

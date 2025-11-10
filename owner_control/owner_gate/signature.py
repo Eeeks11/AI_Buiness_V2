@@ -13,7 +13,7 @@ from config_settings.config import get_settings
 from constitutional_layer_immutable.constitution import (
     validate_constitutional_compliance,
 )
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 
 logger = logging.getLogger(__name__)
 

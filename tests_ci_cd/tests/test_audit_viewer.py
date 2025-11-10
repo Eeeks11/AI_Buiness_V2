@@ -40,9 +40,6 @@ def audit_viewer_module(mock_streamlit):
     project_root = Path(__file__).resolve().parents[2]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-    codebase_path = project_root / "memory_systems" / "codebase_memory"
-    if str(codebase_path) not in sys.path:
-        sys.path.insert(0, str(codebase_path))
     if "owner_control.dashboard.audit_viewer" in sys.modules:
         del sys.modules["owner_control.dashboard.audit_viewer"]
     return importlib.import_module("owner_control.dashboard.audit_viewer")

@@ -12,13 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-CODEBASE_PATH = PROJECT_ROOT / "memory_systems" / "codebase_memory"
-if str(CODEBASE_PATH) not in sys.path:
-    sys.path.insert(0, str(CODEBASE_PATH))
-
 from constitutional_layer_immutable.constitution import validate_constitutional_compliance
 from memory_systems.business_memory.memory.context_builder import build_agent_context
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 from owner_control.owner_gate.authorization import require_owner_approval
 from telemetry.metrics import get_recent_metrics
 from utilities.logger import get_recent_logs, log_event

@@ -15,7 +15,7 @@ from memory_systems.codebase_memory.immutable_storage.arweave_adapter import (
     compute_batch_hash,
     store_log_batch,
 )
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 
 logger = logging.getLogger(__name__)
 
@@ -536,5 +536,61 @@ def validate_log_chain() -> bool:
         },
     )
     return True
+
+
+def reset_log_chain(preserve_backup: bool = True) -> Dict[str, Optional[Path]]:
+    """
+    Reset the immutable audit log and associated batch index.
+
+    Args:
+        preserve_backup: When True, keep timestamped backups of existing files.
+
+    Returns:
+        Dictionary describing backup file paths that were created.
+    """
+    global _last_chain_hash, _entries_since_last_pin
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    log_path = _get_log_file_path()
+    index_path = _resolve_index_file_path()
+
+    log_backup: Optional[Path] = None
+    index_backup: Optional[Path] = None
+
+    if log_path.exists():
+        if preserve_backup:
+            log_backup = log_path.with_name(f"{log_path.stem}_backup_{timestamp}.jsonl")
+            log_path.replace(log_backup)
+        else:
+            log_path.unlink()
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("", encoding="utf-8")
+
+    if index_path.exists():
+        if preserve_backup:
+            extension = index_path.suffix or ".json"
+            index_backup = index_path.with_name(
+                f"{index_path.stem}_backup_{timestamp}{extension}"
+            )
+            index_path.replace(index_backup)
+        else:
+            index_path.unlink()
+
+    _write_batch_index({"batches": [], "total_entries_pinned": 0})
+
+    _last_chain_hash = None
+    _entries_since_last_pin = 0
+    _pending_pin_tx_ids.clear()
+
+    logger.info(
+        "Immutable log chain reset",
+        extra={
+            "log_backup": str(log_backup) if log_backup else None,
+            "index_backup": str(index_backup) if index_backup else None,
+        },
+    )
+
+    return {"log_backup": log_backup, "index_backup": index_backup}
 
 

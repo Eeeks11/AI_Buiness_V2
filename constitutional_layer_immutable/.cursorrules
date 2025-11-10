@@ -5,7 +5,7 @@
 Before generating ANY code, you MUST:
 1. Read and understand `CODING_CONSTITUTION.md` (in same directory)
 2. Follow all 10 coding rules strictly
-3. Import all models from `memory_systems/codebase_memory/models/core.py` (single source of truth)
+3. Import all models from `models/core.py` (single source of truth)
 4. Never create duplicate model definitions
 
 ## Import Paths
@@ -14,10 +14,6 @@ Due to the folder structure, use these import patterns:
 
 ```python
 # For models (single source of truth)
-import sys
-from pathlib import Path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
 from models.core import Vote, Proposal, BoardSession, ConstitutionalError
 
 # For constitutional enforcement
@@ -33,7 +29,7 @@ from constitution import enforce_rule_9, enforce_all_rules
 - Never use raw dictionaries when a model exists
 
 ### Import Discipline (Rule 2)
-- ALWAYS import from `memory_systems/codebase_memory/models/core.py`
+- ALWAYS import from `models/core.py`
 - NEVER create duplicate model definitions
 - NEVER use TypedDict when a Pydantic model exists
 
@@ -53,7 +49,7 @@ from constitution import enforce_rule_9, enforce_all_rules
 - Never process invalid data
 
 ### Model Requirements (Rule 8)
-- All models MUST be in `memory_systems/codebase_memory/models/core.py`
+- All models MUST be in `models/core.py`
 - Required models: `Vote`, `VoteResult`, `Proposal`, `BoardSession`, `BoardMember`
 - Never create models in other modules
 
@@ -76,8 +72,11 @@ constitutional_layer_immutable/
   ├── constitution.py
   └── .cursorrules
 
+models/
+  └── core.py                 # Single source of truth for ALL models
+
 memory_systems/codebase_memory/
-  └── models/core.py          # Single source of truth for ALL models
+  └── immutable_storage/      # Versioned storage adapters
 
 memory_systems/business_memory/
   └── memory/                 # Episodic, semantic, context, access control
@@ -135,7 +134,7 @@ cursor_development_reports/
 
 ## What TO Do
 
-✅ DO import all models from `memory_systems/codebase_memory/models/core.py`
+✅ DO import all models from `models/core.py`
 ✅ DO use Pydantic models for all data
 ✅ DO include complete type hints
 ✅ DO log all operations
@@ -151,4 +150,4 @@ cursor_development_reports/
 
 ---
 
-**Remember:** Consistency is critical. Always use `memory_systems/codebase_memory/models/core.py` as the single source of truth.
+**Remember:** Consistency is critical. Always use `models/core.py` as the single source of truth.

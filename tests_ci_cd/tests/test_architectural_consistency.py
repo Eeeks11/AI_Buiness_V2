@@ -17,7 +17,7 @@ import pytest
 # ============================================================================
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_CORE_PATH = PROJECT_ROOT / "memory_systems" / "codebase_memory" / "models" / "core.py"
+MODELS_CORE_PATH = PROJECT_ROOT / "models" / "core.py"
 CODING_CONSTITUTION_PATH = PROJECT_ROOT / "constitutional_layer_immutable" / "CODING_CONSTITUTION.md"
 
 # Files and directories that should be excluded from certain checks

@@ -14,7 +14,7 @@ from hashlib import sha256
 from typing import Any, Dict, List
 
 from config_settings.config import get_settings
-from memory_systems.codebase_memory.models.core import ConstitutionalError
+from models.core import ConstitutionalError
 
 logger = logging.getLogger(__name__)
 

@@ -68,7 +68,7 @@ AI-Constitutional-Business/ (root: G:\My Drive\AI Business\V2)
 ```python
 # Correctly imports from:
 from models.core import ConstitutionalError
-# Path resolution: memory_systems/codebase_memory/models/core.py
+# Path resolution: models/core.py
 ```
 
 ### ✅ Tests → Constitutional Layer & codebase_memory
@@ -76,19 +76,19 @@ from models.core import ConstitutionalError
 ```python
 # Correctly adds paths:
 constitutional_layer = project_root / "constitutional_layer_immutable"
-codebase_memory = project_root / "memory_systems" / "codebase_memory"
+models_core = project_root / "models"
 ```
 
 ### ✅ Architectural Tests → Updated Paths
 **File:** `tests_ci_cd/tests/test_architectural_consistency.py`
 ```python
-MODELS_CORE_PATH = PROJECT_ROOT / "memory_systems" / "codebase_memory" / "models" / "core.py"
+MODELS_CORE_PATH = PROJECT_ROOT / "models" / "core.py"
 CODING_CONSTITUTION_PATH = PROJECT_ROOT / "constitutional_layer_immutable" / "CODING_CONSTITUTION.md"
 ```
 
 ### ✅ GitHub Workflow → Updated Paths
 **File:** `tests_ci_cd/.github/workflows/constitution-lock.yml`
-- Checks: `memory_systems/codebase_memory/models/core.py`
+- Checks: `models/core.py`
 - Checks: `constitutional_layer_immutable/CODING_CONSTITUTION.md` ✅ (Single source of truth)
 - Protects: `constitutional_layer_immutable/constitution.md`
 - Protects: `constitutional_layer_immutable/constitution.py`
@@ -102,7 +102,7 @@ CODING_CONSTITUTION_PATH = PROJECT_ROOT / "constitutional_layer_immutable" / "CO
 | CODING_CONSTITUTION.md | constitutional_layer_immutable/ | ✅ | Coding rules |
 | constitution.py | constitutional_layer_immutable/ | ✅ | Enforcement functions |
 | .cursorrules | constitutional_layer_immutable/ | ✅ | Cursor AI instructions |
-| models/core.py | memory_systems/codebase_memory/models/ | ✅ | Single source of truth |
+| models/core.py | models/ | ✅ | Single source of truth |
 | test_architectural_consistency.py | tests_ci_cd/tests/ | ✅ | Paths updated |
 | constitution-lock.yml | tests_ci_cd/.github/workflows/ | ✅ | Paths updated |
 

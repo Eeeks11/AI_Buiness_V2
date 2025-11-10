@@ -8,7 +8,7 @@ Each state transition includes constitutional validation gates.
 # Standard library
 import copy
 import logging
-from typing import Dict, Optional, TypedDict
+from typing import Any, Dict, Optional, TypedDict, Union
 from pathlib import Path
 import sys
 
@@ -17,8 +17,13 @@ from langgraph.graph import StateGraph, END
 
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "memory_systems" / "codebase_memory"))
-from models.core import ConstitutionalValidation, ConstitutionalError
+from models.core import (
+    BoardSession,
+    ConstitutionalError,
+    ConstitutionalValidation,
+    Proposal,
+    ProposalStatus,
+)
 
 # Local - constitutional enforcement
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
@@ -36,6 +41,12 @@ from llm_router import call_llm
 logger = logging.getLogger(__name__)
 
 
+# Type aliases for governance state tracking
+ProposalData = Union[Proposal, Dict[str, Any]]
+BoardSessionData = Optional[BoardSession]
+VotingResultData = Optional[Dict[str, ProposalStatus]]
+
+
 # State machine phases
 class GovernancePhase:
     """Governance cycle phases."""
@@ -45,22 +56,24 @@ class GovernancePhase:
     EXECUTION = "EXECUTION"
 
 
-class GovernanceState(TypedDict):
+class GovernanceState(TypedDict, total=False):
     """
     State dictionary for governance cycle.
     
     Contains all information needed to progress through the governance cycle.
     """
     phase: str
-    proposal: Dict
+    proposal: ProposalData
+    proposal_status: ProposalStatus
+    board_session: BoardSessionData
     owner_signature: Optional[str]
     owner_id: Optional[str]
-    authorization_payload: Optional[Dict]
-    context: Optional[Dict]
-    ideation_result: Optional[Dict]
-    deliberation_result: Optional[Dict]
-    voting_result: Optional[Dict]
-    execution_result: Optional[Dict]
+    authorization_payload: Optional[Dict[str, Any]]
+    context: Optional[Dict[str, Any]]
+    ideation_result: Optional[Dict[str, Any]]
+    deliberation_result: Optional[Dict[str, Any]]
+    voting_result: VotingResultData
+    execution_result: Optional[Dict[str, Any]]
     validation_results: Dict[str, ConstitutionalValidation]
     errors: list[str]
 
