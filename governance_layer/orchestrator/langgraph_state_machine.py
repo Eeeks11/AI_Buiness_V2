@@ -7,7 +7,9 @@ Each state transition includes constitutional validation gates.
 
 # Standard library
 import copy
+import json
 import logging
+from datetime import datetime
 from typing import Any, Dict, Optional, TypedDict, Union
 from pathlib import Path
 import sys
@@ -38,7 +40,14 @@ from context_builder import build_agent_context
 sys.path.insert(0, str(project_root / "governance_layer" / "orchestrator"))
 from llm_router import call_llm
 
+# Local - governance
+from governance_layer.governance.board import get_role_provider_map
+from governance_layer.roles.prompt_templates import load_role_configs
+
 logger = logging.getLogger(__name__)
+
+BOARD_ROLES = tuple(load_role_configs().keys())
+PROPOSAL_DATA_DIR = project_root / "data" / "proposals"
 
 
 # Type aliases for governance state tracking
@@ -140,7 +149,7 @@ def conduct_ideation(state: GovernanceState) -> GovernanceState:
         )
         
         ideation_response = call_llm(
-            provider="openai/gpt-4o",
+            provider="openai/gpt-5",
             prompt=ideation_prompt,
             temperature=0.8,
             max_tokens=1500
@@ -229,31 +238,76 @@ def conduct_deliberation(state: GovernanceState) -> GovernanceState:
             metadata={"function": "conduct_deliberation"}
         )
         
-        # Conduct deliberation using LLM
-        deliberation_prompt = (
-            f"Deliberate on this proposal with full board context:\n\n"
-            f"Proposal: {state['proposal'].get('title', '')}\n"
-            f"Description: {state['proposal'].get('description', '')}\n"
-            f"Financial Impact: {state['proposal'].get('financial_impact', 0)}\n"
-            f"Legal Risk: {state['proposal'].get('legal_risk', 0)}\n\n"
-            f"Constitutional Rules: {context.get('constitutional_rules', {})}\n"
-            f"Recent Activity: {context.get('recent_activity_summary', '')[:500]}\n"
-            f"Relevant Precedents: {len(context.get('relevant_precedents', []))} found\n"
-            f"Trend Analysis: {context.get('trend_analysis', '')[:500]}\n\n"
-            f"Provide deliberation considering: financial priority, legal protection, and board composition."
-        )
-        
-        deliberation_response = call_llm(
-            provider="anthropic/claude-3-5-sonnet-20241022",
-            prompt=deliberation_prompt,
-            temperature=0.7,
-            max_tokens=2000
-        )
-        
-        state["deliberation_result"] = {
-            "deliberation": deliberation_response,
-            "timestamp": context["timestamp"]
+        proposal_id = state["proposal"].get("id", "UNKNOWN")
+        deliberation_timestamp = datetime.now().isoformat()
+        role_responses: Dict[str, Dict[str, Any]] = {}
+        aggregated_segments = []
+
+        role_providers = get_role_provider_map()
+
+        for role in BOARD_ROLES:
+            role_context = build_agent_context(
+                role=role,
+                current_proposal=state["proposal"],
+                topic_keywords=state["proposal"].get("keywords", [])
+            )
+            prompt = _build_role_deliberation_prompt(role, role_context)
+            provider = role_providers.get(role)
+
+            if not provider:
+                logger.error(
+                    "No provider configured for role",
+                    extra={"role": role, "proposal_id": proposal_id}
+                )
+                raise ConstitutionalError(
+                    f"Rule 8 Violation: No LLM provider configured for board role '{role}'"
+                )
+
+            response = call_llm(
+                provider=provider,
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=2000
+            )
+
+            captured_at = datetime.now().isoformat()
+            role_responses[role] = {
+                "provider": provider,
+                "prompt": prompt,
+                "response": response,
+                "captured_at": captured_at,
+            }
+            aggregated_segments.append(f"{role}: {response}")
+
+            try:
+                base_log_event(
+                    event_type="board_deliberation_response_captured",
+                    data={
+                        "proposal_id": proposal_id,
+                        "role": role,
+                        "provider": provider,
+                        "response_length": len(response),
+                        "captured_at": captured_at
+                    },
+                    metadata={"function": "conduct_deliberation"}
+                )
+            except Exception as log_exc:
+                logger.warning(
+                    "Failed to log deliberation response capture",
+                    extra={"role": role, "error": str(log_exc)}
+                )
+
+        combined_deliberation = "\n\n".join(aggregated_segments)
+        deliberation_payload = {
+            "combined_deliberation": combined_deliberation,
+            "deliberation": combined_deliberation,
+            "responses": role_responses,
+            "timestamp": deliberation_timestamp,
         }
+
+        storage_path = _persist_deliberation_results(proposal_id, deliberation_payload)
+        deliberation_payload["storage_path"] = str(storage_path)
+        state["deliberation_result"] = deliberation_payload
         
         # Constitutional validation gate: Validate legal/security review
         validation = validate_constitutional_compliance(
@@ -560,4 +614,76 @@ def run_governance_cycle(
         raise ConstitutionalError(
             f"Rule 6 Violation: Governance cycle failed. Error: {e}"
         )
+
+
+def _persist_deliberation_results(proposal_id: str, payload: Dict[str, Any]) -> Path:
+    """
+    Persist deliberation payload to disk for immutable audit trail.
+
+    Args:
+        proposal_id: Identifier of the proposal under deliberation.
+        payload: Deliberation payload containing responses by role.
+
+    Returns:
+        Path to the persisted deliberation file.
+    """
+    sanitized_id = _sanitize_identifier(proposal_id or "UNKNOWN")
+    PROPOSAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{sanitized_id}_deliberation.json"
+    destination = PROPOSAL_DATA_DIR / filename
+
+    with open(destination, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, ensure_ascii=False)
+
+    logger.info(
+        "Deliberation results persisted",
+        extra={"proposal_id": proposal_id, "path": str(destination)}
+    )
+    return destination
+
+
+def _build_role_deliberation_prompt(role: str, context: Dict[str, Any]) -> str:
+    """
+    Construct a deliberation prompt tailored to a specific board role.
+
+    Args:
+        role: Board role identifier.
+        context: Context dictionary returned by build_agent_context.
+
+    Returns:
+        Prompt string for the board member.
+    """
+    proposal = context.get("current_proposal", {})
+    recent_activity = context.get("recent_activity_summary", "")
+    trend_analysis = context.get("trend_analysis", "")
+    precedents = context.get("relevant_precedents", [])
+
+    precedent_summary = "\n".join(
+        f"- {precedent.get('summary', str(precedent))}" for precedent in precedents
+    ) or "- None recorded"
+
+    return (
+        f"You are serving as the {role} on the AI governance board.\n"
+        f"Proposal ID: {proposal.get('id', 'UNKNOWN')}\n"
+        f"Title: {proposal.get('title', 'No title provided')}\n"
+        f"Description: {proposal.get('description', 'No description provided')}\n"
+        f"Financial Impact: {proposal.get('financial_impact', 'Unspecified')}\n"
+        f"Legal Risk: {proposal.get('legal_risk', 'Unspecified')}\n\n"
+        f"Recent Board Activity:\n{recent_activity or 'No recent activity recorded.'}\n\n"
+        f"Relevant Precedents:\n{precedent_summary}\n\n"
+        f"Trend Analysis:\n{trend_analysis or 'No trend analysis available.'}\n\n"
+        f"Provide a detailed deliberation from the perspective of the {role}. "
+        f"Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. "
+        f"Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning."
+    )
+
+
+def _sanitize_identifier(value: str) -> str:
+    """
+    Sanitize identifiers for filesystem use.
+
+    Allows alphanumeric characters, hyphen, and underscore.
+    Other characters are replaced with underscores.
+    """
+    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
 

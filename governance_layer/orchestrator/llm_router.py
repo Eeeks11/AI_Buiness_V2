@@ -37,10 +37,15 @@ logger = logging.getLogger(__name__)
 
 # Provider mapping
 PROVIDER_MAP = {
+    "openai/gpt-5": "gpt-5",
     "openai/gpt-4o": "gpt-4o",
+    "anthropic/claude-4.5-sonnet": "claude-4.5-sonnet",
     "anthropic/claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022",
+    "google/gemini-2.5-pro": "gemini-2.5-pro",
     "google/gemini-1.5-pro": "gemini/gemini-1.5-pro",
+    "x-ai/grok-4": "grok-4",
     "x-ai/grok-beta": "grok-beta",
+    "mistralai/mistral-large-2": "mistral-large-2",
     "mistralai/mistral-large": "mistral-large"
 }
 
@@ -62,7 +67,7 @@ def call_llm(
     After successful call, logs response length.
     
     Args:
-        provider: Provider identifier (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+        provider: Provider identifier (e.g., "openai/gpt-5", "anthropic/claude-4.5-sonnet")
         prompt: Prompt text to send to LLM
         temperature: Temperature parameter (default: 0.7)
         max_tokens: Maximum tokens in response (default: 2000)
@@ -75,7 +80,7 @@ def call_llm(
         
     Example:
         >>> response = call_llm(
-        ...     provider="openai/gpt-4o",
+        ...     provider="openai/gpt-5",
         ...     prompt="Analyze this proposal...",
         ...     temperature=0.7
         ... )
@@ -231,7 +236,7 @@ def get_available_providers() -> List[str]:
     Example:
         >>> providers = get_available_providers()
         >>> assert len(providers) >= 5
-        >>> assert "openai/gpt-4o" in providers
+        >>> assert "openai/gpt-5" in providers
     """
     try:
         settings = get_settings()
@@ -239,11 +244,11 @@ def get_available_providers() -> List[str]:
         
         # Map active models to provider identifiers
         model_to_provider = {
-            "openai": "openai/gpt-4o",
-            "anthropic": "anthropic/claude-3-5-sonnet-20241022",
-            "google": "google/gemini-1.5-pro",
-            "xai": "x-ai/grok-beta",
-            "mistral": "mistralai/mistral-large"
+            "openai": "openai/gpt-5",
+            "anthropic": "anthropic/claude-4.5-sonnet",
+            "google": "google/gemini-2.5-pro",
+            "xai": "x-ai/grok-4",
+            "mistral": "mistralai/mistral-large-2"
         }
         
         providers = [model_to_provider[model] for model in active_models if model in model_to_provider]
