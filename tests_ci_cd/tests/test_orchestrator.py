@@ -179,12 +179,15 @@ class TestLLMRouter:
         mock_completion.return_value = mock_response
         
         # Test all providers
+        from config_settings.config import get_settings
+
+        settings = get_settings()
         providers = [
-            "openai/gpt-5",
-            "anthropic/claude-4.5-sonnet",
-            "google/gemini-2.5-pro",
-            "x-ai/grok-4",
-            "mistralai/mistral-large-2"
+            settings.provider_model_identifier("openai"),
+            settings.provider_model_identifier("anthropic"),
+            settings.provider_model_identifier("google"),
+            settings.provider_model_identifier("xai"),
+            settings.provider_model_identifier("mistral"),
         ]
         
         for provider in providers:
@@ -252,15 +255,23 @@ class TestLLMRouter:
             "xai",
             "mistral"
         ]
+        mock_settings_instance.provider_model_identifier.side_effect = lambda vendor: f"{vendor}/{vendor}_model"
         mock_settings.return_value = mock_settings_instance
         
         # Get providers
         providers = get_available_providers()
         
+        expected = [
+            "openai/openai_model",
+            "anthropic/anthropic_model",
+            "google/google_model",
+            "xai/xai_model",
+            "mistral/mistral_model",
+        ]
+
         # Verify providers
         assert len(providers) == 5
-        assert "openai/gpt-5" in providers
-        assert "anthropic/claude-4.5-sonnet" in providers
+        assert providers == expected
     
     @patch("llm_router.get_settings")
     def test_get_available_providers_rule_8(self, mock_settings):
@@ -268,6 +279,7 @@ class TestLLMRouter:
         # Mock settings with fewer than 5 providers
         mock_settings_instance = MagicMock()
         mock_settings_instance.active_models = ["openai", "anthropic"]
+        mock_settings_instance.provider_model_identifier.side_effect = lambda vendor: f"{vendor}/{vendor}_model"
         mock_settings.return_value = mock_settings_instance
         
         # Get providers (should raise error)

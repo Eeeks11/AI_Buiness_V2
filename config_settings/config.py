@@ -36,6 +36,28 @@ class Settings(BaseSettings):
     google_api_key: Optional[str] = Field(None, description="Google API key")
     xai_api_key: Optional[str] = Field(None, description="xAI API key")
     mistral_api_key: Optional[str] = Field(None, description="Mistral API key")
+
+    # Preferred model versions (Rule 8 transparency)
+    openai_version: str = Field(
+        default="gpt-5",
+        description="Preferred OpenAI model version identifier"
+    )
+    anthropic_version: str = Field(
+        default="claude-sonnet-4-5-20250929",
+        description="Preferred Anthropic model version identifier"
+    )
+    google_version: str = Field(
+        default="gemini-2.5-pro",
+        description="Preferred Google model version identifier"
+    )
+    xai_version: str = Field(
+        default="grok-4-0709",
+        description="Preferred xAI model version identifier"
+    )
+    mistral_version: str = Field(
+        default="mistral-large-latest",
+        description="Preferred Mistral model version identifier"
+    )
     
     # Owner Authentication (Rule 10)
     owner_auth_mode: Literal["SOFTWARE", "HARDWARE", "MOCK"] = Field(
@@ -176,6 +198,45 @@ class Settings(BaseSettings):
             weights[role_name] = weight_per_model
         
         return weights
+
+    def provider_model_identifier(self, provider_key: str) -> str:
+        """
+        Resolve the canonical provider/model identifier for the given vendor key.
+
+        Args:
+            provider_key: Vendor identifier such as 'openai', 'anthropic', 'google', 'xai', 'mistral'.
+
+        Returns:
+            Provider/model identifier string (e.g., 'openai/gpt-5').
+
+        Raises:
+            ConstitutionalError: If the provider cannot be resolved.
+        """
+        normalized = provider_key.strip().lower()
+        vendor_map = {
+            "openai": ("openai", self.openai_version),
+            "anthropic": ("anthropic", self.anthropic_version),
+            "google": ("google", self.google_version),
+            "xai": ("x-ai", self.xai_version),
+            "x-ai": ("x-ai", self.xai_version),
+            "mistral": ("mistralai", self.mistral_version),
+            "mistralai": ("mistralai", self.mistral_version),
+        }
+
+        vendor_entry = vendor_map.get(normalized)
+        if not vendor_entry:
+            raise ConstitutionalError(
+                f"Rule 8 Violation: Unknown provider key '{provider_key}' in configuration"
+            )
+
+        vendor_prefix, version = vendor_entry
+        version = (version or "").strip()
+        if not version:
+            raise ConstitutionalError(
+                f"Rule 8 Violation: Missing model version for provider '{provider_key}'"
+            )
+
+        return f"{vendor_prefix}/{version}"
     
     def validate_constitutional_compliance(self) -> None:
         """

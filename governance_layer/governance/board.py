@@ -44,6 +44,10 @@ from llm_router import call_llm
 sys.path.insert(0, str(project_root / "governance_layer" / "roles"))
 from prompt_templates import generate_role_prompt, load_role_configs
 
+# Local - configuration
+sys.path.insert(0, str(project_root / "config_settings"))
+from config import get_settings
+
 # Local - voting
 sys.path.insert(0, str(project_root / "governance_layer" / "governance"))
 from voting import tally_votes
@@ -54,17 +58,6 @@ from utilities.logger import log_event
 logger = logging.getLogger(__name__)
 
 _ROLE_PROVIDER_CONFIG_PATH = project_root / "config_settings" / "role_provider_map.json"
-_DEFAULT_ROLE_PROVIDER_MAP: Dict[str, str] = {
-    "CHAIR": "openai/gpt-5",
-    "CEO": "openai/gpt-5",
-    "COO": "x-ai/grok-4",
-    "CMO": "google/gemini-2.5-pro",
-    "CFO": "anthropic/claude-4.5-sonnet",
-    "LEGAL": "mistralai/mistral-large-2",
-    "CISO": "x-ai/grok-4",
-    "SECRETARY": "anthropic/claude-4.5-sonnet",
-}
-
 _ROLE_PROVIDER_CACHE: Optional[Dict[str, str]] = None
 
 
@@ -77,10 +70,29 @@ def _load_role_provider_map() -> Dict[str, str]:
     """
     config_data: Dict[str, str] = {}
 
+    settings = get_settings()
+    default_map: Dict[str, str] = {
+        "CHAIR": settings.provider_model_identifier("openai"),
+        "CEO": settings.provider_model_identifier("openai"),
+        "COO": settings.provider_model_identifier("xai"),
+        "CMO": settings.provider_model_identifier("google"),
+        "CFO": settings.provider_model_identifier("anthropic"),
+        "LEGAL": settings.provider_model_identifier("mistral"),
+        "CISO": settings.provider_model_identifier("xai"),
+        "SECRETARY": settings.provider_model_identifier("anthropic"),
+    }
+
     if _ROLE_PROVIDER_CONFIG_PATH.exists():
         try:
             with open(_ROLE_PROVIDER_CONFIG_PATH, "r", encoding="utf-8") as handle:
-                config_data = json.load(handle)
+                raw_data = json.load(handle)
+                if isinstance(raw_data, dict):
+                    config_data = raw_data
+                else:
+                    logger.warning(
+                        "Role provider configuration is not a dictionary; ignoring contents",
+                        extra={"path": str(_ROLE_PROVIDER_CONFIG_PATH)},
+                    )
         except json.JSONDecodeError as exc:
             logger.error(
                 "Role provider configuration file malformed",
@@ -107,8 +119,17 @@ def _load_role_provider_map() -> Dict[str, str]:
                 f"Rule 6 Violation: Unable to initialize role provider configuration. Error: {exc}"
             ) from exc
 
-    merged_map = {role.upper(): provider for role, provider in _DEFAULT_ROLE_PROVIDER_MAP.items()}
-    merged_map.update({role.upper(): provider for role, provider in config_data.items()})
+    merged_map = {role.upper(): provider for role, provider in default_map.items()}
+    for role, provider in config_data.items():
+        role_key = role.upper()
+        if role_key not in merged_map:
+            continue
+        if provider is None:
+            continue
+        provider_value = str(provider).strip()
+        if provider_value.upper() in {"ENV", "AUTO", "DEFAULT"}:
+            continue
+        merged_map[role_key] = provider_value
 
     role_configs = load_role_configs()
     missing_roles = [role for role in role_configs.keys() if role not in merged_map]

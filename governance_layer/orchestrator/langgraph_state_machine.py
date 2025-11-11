@@ -44,6 +44,10 @@ from llm_router import call_llm
 from governance_layer.governance.board import get_role_provider_map
 from governance_layer.roles.prompt_templates import load_role_configs
 
+# Local - configuration
+sys.path.insert(0, str(project_root / "config_settings"))
+from config import get_settings
+
 logger = logging.getLogger(__name__)
 
 BOARD_ROLES = tuple(load_role_configs().keys())
@@ -148,8 +152,9 @@ def conduct_ideation(state: GovernanceState) -> GovernanceState:
             f"Generate creative ideas that align with constitutional rules and maximize financial benefit."
         )
         
+        openai_provider = get_settings().provider_model_identifier("openai")
         ideation_response = call_llm(
-            provider="openai/gpt-5",
+            provider=openai_provider,
             prompt=ideation_prompt,
             temperature=0.8,
             max_tokens=1500

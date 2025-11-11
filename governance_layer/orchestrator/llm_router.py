@@ -39,15 +39,35 @@ logger = logging.getLogger(__name__)
 PROVIDER_MAP = {
     "openai/gpt-5": "gpt-5",
     "openai/gpt-4o": "gpt-4o",
+    "anthropic/claude-sonnet-4-5-20250929": "claude-sonnet-4-5-20250929",
     "anthropic/claude-4.5-sonnet": "claude-4.5-sonnet",
     "anthropic/claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022",
     "google/gemini-2.5-pro": "gemini-2.5-pro",
     "google/gemini-1.5-pro": "gemini/gemini-1.5-pro",
-    "x-ai/grok-4": "grok-4",
-    "x-ai/grok-beta": "grok-beta",
-    "mistralai/mistral-large-2": "mistral-large-2",
-    "mistralai/mistral-large": "mistral-large"
+    "x-ai/grok-4-0709": "xai/grok-4-0709",
+    "x-ai/grok-4": "xai/grok-4",
+    "x-ai/grok-beta": "xai/grok-beta",
+    "mistralai/mistral-large-latest": "mistral/mistral-large-latest",
+    "mistralai/mistral-large-2": "mistral/mistral-large-2",
+    "mistralai/mistral-large": "mistral/mistral-large"
 }
+
+
+def _coerce_temperature(provider: str, requested_temperature: float) -> float:
+    """
+    Adjust temperature for providers that only accept fixed values.
+
+    GPT-5 endpoints currently refuse temperatures other than 1.0. Rather than
+    forcing callers to remember that caveat, we coerce the value here and note
+    the adjustment in the logs.
+    """
+    if provider.startswith("openai/gpt-5") and requested_temperature != 1.0:
+        logger.info(
+            "Adjusting temperature to 1.0 for provider requiring fixed temperature",
+            extra={"provider": provider, "requested_temperature": requested_temperature},
+        )
+        return 1.0
+    return requested_temperature
 
 
 def call_llm(
@@ -87,6 +107,7 @@ def call_llm(
         >>> assert len(response) > 0
     """
     logger.info(f"Calling LLM: {provider}", extra={"provider": provider, "prompt_length": len(prompt)})
+    effective_temperature = _coerce_temperature(provider, temperature)
     
     # Log LLM call attempt (Rule 6)
     try:
@@ -96,7 +117,7 @@ def call_llm(
                 "provider": provider,
                 "prompt": prompt[:200],  # Truncate for logging
                 "prompt_length": len(prompt),
-                "temperature": temperature,
+                "temperature": effective_temperature,
                 "max_tokens": max_tokens
             },
             metadata={"function": "call_llm"}
@@ -135,13 +156,7 @@ def call_llm(
         )
     
     # Map provider to LiteLLM model name
-    model_name = PROVIDER_MAP.get(provider)
-    if not model_name:
-        logger.error(f"Unknown provider: {provider}")
-        raise ConstitutionalError(
-            f"Unknown LLM provider: {provider}. "
-            f"Supported providers: {list(PROVIDER_MAP.keys())}"
-        )
+    model_name = _resolve_model_name(provider)
     
     # Retry logic: 3 attempts with exponential backoff
     max_retries = 3
@@ -156,7 +171,7 @@ def call_llm(
                     {"role": "system", "content": "You are a helpful AI assistant for board governance."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=temperature,
+                temperature=effective_temperature,
                 max_tokens=max_tokens
             )
             
@@ -243,15 +258,16 @@ def get_available_providers() -> List[str]:
         active_models = settings.active_models
         
         # Map active models to provider identifiers
-        model_to_provider = {
-            "openai": "openai/gpt-5",
-            "anthropic": "anthropic/claude-4.5-sonnet",
-            "google": "google/gemini-2.5-pro",
-            "xai": "x-ai/grok-4",
-            "mistral": "mistralai/mistral-large-2"
-        }
-        
-        providers = [model_to_provider[model] for model in active_models if model in model_to_provider]
+        providers = []
+        for model in active_models:
+            try:
+                providers.append(settings.provider_model_identifier(model))
+            except ConstitutionalError as exc:
+                logger.error(
+                    "Failed to resolve provider identifier",
+                    extra={"model": model, "error": str(exc)}
+                )
+                raise
         
         # Validate Rule 8: Minimum 5 providers
         if len(providers) < 5:
@@ -274,4 +290,51 @@ def get_available_providers() -> List[str]:
         raise ConstitutionalError(
             f"Rule 8 Violation: Failed to get available providers. Error: {e}"
         )
+
+
+def _resolve_model_name(provider: str) -> str:
+    """
+    Resolve LiteLLM model name for a provider identifier.
+
+    Supports explicit mappings in PROVIDER_MAP and heuristic fallbacks using configuration versions.
+    """
+    if provider in PROVIDER_MAP:
+        return PROVIDER_MAP[provider]
+
+    if "/" not in provider:
+        logger.error(f"Malformed provider identifier: {provider}")
+        raise ConstitutionalError(
+            f"Unknown LLM provider: {provider}. Expected format 'vendor/model_version'."
+        )
+
+    vendor, version = provider.split("/", 1)
+    vendor = vendor.strip().lower()
+    version = version.strip()
+
+    if not vendor or not version:
+        raise ConstitutionalError(
+            f"Unknown LLM provider: {provider}. Expected format 'vendor/model_version'."
+        )
+
+    if vendor == "google":
+        if version.startswith("gemini/"):
+            return version
+        return f"gemini/{version}"
+
+    if vendor in {"openai", "anthropic"}:
+        return version
+
+    alias_map = {
+        "x-ai": "xai",
+        "xai": "xai",
+        "mistralai": "mistral",
+        "mistral": "mistral",
+    }
+    if vendor in alias_map:
+        return f"{alias_map[vendor]}/{version}"
+
+    logger.error(f"Unsupported provider identifier: {provider}")
+    raise ConstitutionalError(
+        f"Unknown LLM provider: {provider}. Unable to resolve LiteLLM model."
+    )
 
