@@ -92,11 +92,11 @@ jobs:
 
       - name: Verify models/core.py exists
         run: |
-          if [ ! -f "memory_systems/codebase_memory/models/core.py" ]; then
-            echo "::error::memory_systems/codebase_memory/models/core.py must exist (Rule 8: Minimum Model Requirements)"
+          if [ ! -f "models/core.py" ]; then
+            echo "::error::models/core.py must exist (Rule 8: Minimum Model Requirements)"
             exit 1
           fi
-          echo "✓ memory_systems/codebase_memory/models/core.py exists"
+          echo "✓ models/core.py exists"
 
       - name: Verify CODING_CONSTITUTION.md exists
         run: |
@@ -112,8 +112,7 @@ jobs:
           import sys
           from pathlib import Path
           project_root = Path('.')
-          codebase_memory = project_root / 'memory_systems' / 'codebase_memory'
-          sys.path.insert(0, str(codebase_memory))
+          sys.path.insert(0, str(project_root))
           try:
               from models.core import Vote, VoteResult, Proposal, BoardSession, BoardMember, ConstitutionalError
               print('✓ All required models exist in models/core.py')
