@@ -149,6 +149,9 @@ pip install -r requirements.txt
 # Configure environment
 cp .env.example .env
 # Edit .env with your API keys
+# Google Gemini requires Application Default Credentials (ADC):
+# set GOOGLE_APPLICATION_CREDENTIALS=C:\path\to\service-account.json
+# or run `gcloud auth application-default login`
 ```
 
 ### Health Check
