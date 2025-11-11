@@ -6,10 +6,11 @@ logging and validation to satisfy Week 6 governance requirements.
 """
 
 # Standard library
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import sys
 
 # Local - models first (single source of truth)
@@ -52,16 +53,98 @@ from utilities.logger import log_event
 
 logger = logging.getLogger(__name__)
 
-ROLE_PROVIDER_MAP: Dict[str, str] = {
-    "CEO": "openai/gpt-4o",
-    "CFO": "anthropic/claude-3-5-sonnet-20241022",
-    "COO": "google/gemini-1.5-pro",
-    "CMO": "x-ai/grok-beta",
-    "LEGAL": "openai/gpt-4o",
-    "CISO": "mistralai/mistral-large",
-    "CHAIR": "anthropic/claude-3-5-sonnet-20241022",
-    "SECRETARY": "google/gemini-1.5-pro"
+_ROLE_PROVIDER_CONFIG_PATH = project_root / "config_settings" / "role_provider_map.json"
+_DEFAULT_ROLE_PROVIDER_MAP: Dict[str, str] = {
+    "CHAIR": "openai/gpt-5",
+    "CEO": "openai/gpt-5",
+    "COO": "x-ai/grok-4",
+    "CMO": "google/gemini-2.5-pro",
+    "CFO": "anthropic/claude-4.5-sonnet",
+    "LEGAL": "mistralai/mistral-large-2",
+    "CISO": "x-ai/grok-4",
+    "SECRETARY": "anthropic/claude-4.5-sonnet",
 }
+
+_ROLE_PROVIDER_CACHE: Optional[Dict[str, str]] = None
+
+
+def _load_role_provider_map() -> Dict[str, str]:
+    """
+    Load role-to-provider assignments from configuration, ensuring defaults exist.
+
+    Returns:
+        Dictionary mapping role identifiers to provider strings.
+    """
+    config_data: Dict[str, str] = {}
+
+    if _ROLE_PROVIDER_CONFIG_PATH.exists():
+        try:
+            with open(_ROLE_PROVIDER_CONFIG_PATH, "r", encoding="utf-8") as handle:
+                config_data = json.load(handle)
+        except json.JSONDecodeError as exc:
+            logger.error(
+                "Role provider configuration file malformed",
+                extra={"path": str(_ROLE_PROVIDER_CONFIG_PATH), "error": str(exc)},
+            )
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Role provider configuration invalid. Error: {exc}"
+            ) from exc
+    else:
+        try:
+            _ROLE_PROVIDER_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with open(_ROLE_PROVIDER_CONFIG_PATH, "w", encoding="utf-8") as handle:
+                json.dump(_DEFAULT_ROLE_PROVIDER_MAP, handle, indent=2, ensure_ascii=False)
+            logger.info(
+                "Role provider configuration file created with defaults",
+                extra={"path": str(_ROLE_PROVIDER_CONFIG_PATH)},
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to create default role provider configuration",
+                extra={"path": str(_ROLE_PROVIDER_CONFIG_PATH), "error": str(exc)},
+            )
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Unable to initialize role provider configuration. Error: {exc}"
+            ) from exc
+
+    merged_map = {role.upper(): provider for role, provider in _DEFAULT_ROLE_PROVIDER_MAP.items()}
+    merged_map.update({role.upper(): provider for role, provider in config_data.items()})
+
+    role_configs = load_role_configs()
+    missing_roles = [role for role in role_configs.keys() if role not in merged_map]
+    if missing_roles:
+        logger.error(
+            "Role provider configuration missing assignments",
+            extra={"missing_roles": missing_roles},
+        )
+        raise ConstitutionalError(
+            f"Rule 8 Violation: Provider assignments missing for roles: {missing_roles}"
+        )
+
+    provider_families = {provider.split("/")[0] for provider in merged_map.values() if isinstance(provider, str)}
+    if len(provider_families) < 5:
+        logger.error(
+            "Insufficient provider diversity for board roles",
+            extra={"unique_providers": sorted(provider_families)},
+        )
+        raise ConstitutionalError(
+            "Rule 8 Violation: Board roles must be distributed across at least five distinct providers."
+        )
+
+    return merged_map
+
+
+def get_role_provider_map(refresh: bool = False) -> Dict[str, str]:
+    """
+    Retrieve the cached role-to-provider mapping (optionally refreshing it).
+    """
+    global _ROLE_PROVIDER_CACHE
+    if refresh or _ROLE_PROVIDER_CACHE is None:
+        _ROLE_PROVIDER_CACHE = _load_role_provider_map()
+    return dict(_ROLE_PROVIDER_CACHE)
+
+
+ROLE_PROVIDER_MAP: Dict[str, str] = get_role_provider_map(refresh=True)
 
 
 def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
@@ -161,10 +244,19 @@ def conduct_deliberation(ideation_output: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         role_prompts = ideation_output.get("role_prompts", {})
+        role_providers = get_role_provider_map()
         deliberation_responses: Dict[str, str] = {}
 
         for role, prompt in role_prompts.items():
-            provider = ROLE_PROVIDER_MAP.get(role, "openai/gpt-4o")
+            provider = role_providers.get(role)
+            if not provider:
+                logger.error(
+                    "No provider assigned for role",
+                    extra={"role": role, "proposal_id": proposal_id},
+                )
+                raise ConstitutionalError(
+                    f"Rule 8 Violation: No provider configured for board role '{role}'"
+                )
             deliberation_responses[role] = call_llm(
                 provider=provider,
                 prompt=prompt,

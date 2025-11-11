@@ -180,11 +180,11 @@ class TestLLMRouter:
         
         # Test all providers
         providers = [
-            "openai/gpt-4o",
-            "anthropic/claude-3-5-sonnet-20241022",
-            "google/gemini-1.5-pro",
-            "x-ai/grok-beta",
-            "mistralai/mistral-large"
+            "openai/gpt-5",
+            "anthropic/claude-4.5-sonnet",
+            "google/gemini-2.5-pro",
+            "x-ai/grok-4",
+            "mistralai/mistral-large-2"
         ]
         
         for provider in providers:
@@ -209,7 +209,7 @@ class TestLLMRouter:
         mock_completion.return_value = mock_response
         
         # Call LLM
-        call_llm(provider="openai/gpt-4o", prompt="Test prompt")
+        call_llm(provider="openai/gpt-5", prompt="Test prompt")
         
         # Verify logging
         assert mock_log.call_count >= 2  # At least attempt and success logs
@@ -234,7 +234,7 @@ class TestLLMRouter:
         mock_completion.side_effect = [Exception("Error"), mock_response]
         
         # Call LLM (should retry)
-        response = call_llm(provider="openai/gpt-4o", prompt="Test prompt")
+        response = call_llm(provider="openai/gpt-5", prompt="Test prompt")
         
         # Verify retry
         assert mock_completion.call_count == 2
@@ -259,8 +259,8 @@ class TestLLMRouter:
         
         # Verify providers
         assert len(providers) == 5
-        assert "openai/gpt-4o" in providers
-        assert "anthropic/claude-3-5-sonnet-20241022" in providers
+        assert "openai/gpt-5" in providers
+        assert "anthropic/claude-4.5-sonnet" in providers
     
     @patch("llm_router.get_settings")
     def test_get_available_providers_rule_8(self, mock_settings):

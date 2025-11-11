@@ -1,0 +1,55 @@
+{
+  "combined_deliberation": "CHAIR: llm-response\n\nCEO: llm-response\n\nLEGAL: llm-response\n\nCISO: llm-response\n\nCFO: llm-response\n\nCOO: llm-response\n\nCMO: llm-response\n\nSECRETARY: llm-response",
+  "deliberation": "CHAIR: llm-response\n\nCEO: llm-response\n\nLEGAL: llm-response\n\nCISO: llm-response\n\nCFO: llm-response\n\nCOO: llm-response\n\nCMO: llm-response\n\nSECRETARY: llm-response",
+  "responses": {
+    "CHAIR": {
+      "provider": "openai/gpt-5",
+      "prompt": "You are serving as the CHAIR on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the CHAIR. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722739"
+    },
+    "CEO": {
+      "provider": "openai/gpt-5",
+      "prompt": "You are serving as the CEO on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the CEO. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722754"
+    },
+    "LEGAL": {
+      "provider": "mistralai/mistral-large-2",
+      "prompt": "You are serving as the LEGAL on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the LEGAL. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722770"
+    },
+    "CISO": {
+      "provider": "x-ai/grok-4",
+      "prompt": "You are serving as the CISO on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the CISO. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722783"
+    },
+    "CFO": {
+      "provider": "anthropic/claude-4.5-sonnet",
+      "prompt": "You are serving as the CFO on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the CFO. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722796"
+    },
+    "COO": {
+      "provider": "x-ai/grok-4",
+      "prompt": "You are serving as the COO on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the COO. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722815"
+    },
+    "CMO": {
+      "provider": "google/gemini-2.5-pro",
+      "prompt": "You are serving as the CMO on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the CMO. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722828"
+    },
+    "SECRETARY": {
+      "provider": "anthropic/claude-4.5-sonnet",
+      "prompt": "You are serving as the SECRETARY on the AI governance board.\nProposal ID: UNKNOWN\nTitle: No title provided\nDescription: No description provided\nFinancial Impact: Unspecified\nLegal Risk: Unspecified\n\nRecent Board Activity:\nNo recent activity recorded.\n\nRelevant Precedents:\n- None recorded\n\nTrend Analysis:\nNo trend analysis available.\n\nProvide a detailed deliberation from the perspective of the SECRETARY. Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning.",
+      "response": "llm-response",
+      "captured_at": "2025-11-11T19:46:21.722842"
+    }
+  },
+  "timestamp": "2025-11-11T19:46:21.722724"
+}
