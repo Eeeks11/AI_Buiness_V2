@@ -1,11 +1,11 @@
 {
   "CHAIR": "openai/gpt-5",
   "CEO": "openai/gpt-5",
-  "COO": "x-ai/grok-4",
+  "COO": "x-ai/grok-4-0709",
   "CMO": "google/gemini-2.5-pro",
-  "CFO": "anthropic/claude-4.5-sonnet",
-  "LEGAL": "mistralai/mistral-large-2",
-  "CISO": "x-ai/grok-4",
-  "SECRETARY": "anthropic/claude-4.5-sonnet"
+  "CFO": "anthropic/claude-4-5-sonnet-20250929",
+  "LEGAL": "mistralai/mistral-large-latest",
+  "CISO": "x-ai/grok-4-0709",
+  "SECRETARY": "anthropic/claude-4-5-sonnet-20250929"
 }
 
