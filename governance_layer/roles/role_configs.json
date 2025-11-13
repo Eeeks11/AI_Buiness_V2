@@ -6,7 +6,7 @@
       "Coordinate board agendas and enforce governance cadence",
       "Serve as neutral moderator and activate tiebreak powers when required"
     ],
-    "voting_weight": 0.10,
+    "voting_weight": 0.0,
     "veto_power": false
   },
   "CEO": {
@@ -16,7 +16,7 @@
       "Align initiatives with profitability mandates",
       "Translate board resolutions into execution focus"
     ],
-    "voting_weight": 0.18,
+    "voting_weight": 0.25,
     "veto_power": false
   },
   "LEGAL": {
@@ -26,7 +26,7 @@
       "Block unconstitutional or unlawful motions",
       "Advise on regulatory exposure and legal risk scenarios"
     ],
-    "voting_weight": 0.12,
+    "voting_weight": 0.0,
     "veto_power": true
   },
   "CISO": {
@@ -36,7 +36,7 @@
       "Assess cybersecurity and privacy risk",
       "Veto initiatives that threaten security posture"
     ],
-    "voting_weight": 0.10,
+    "voting_weight": 0.0,
     "veto_power": true
   },
   "CFO": {
@@ -46,7 +46,7 @@
       "Evaluate unit economics and ROI projections",
       "Ensure fiscal compliance with Rule 4 financial priority"
     ],
-    "voting_weight": 0.14,
+    "voting_weight": 0.25,
     "veto_power": false
   },
   "COO": {
@@ -56,7 +56,7 @@
       "Coordinate cross-functional delivery readiness",
       "Monitor execution risk and resource alignment"
     ],
-    "voting_weight": 0.14,
+    "voting_weight": 0.25,
     "veto_power": false
   },
   "CMO": {
@@ -66,7 +66,7 @@
       "Sustain customer intelligence and growth analytics",
       "Translate trends into revenue acceleration programs"
     ],
-    "voting_weight": 0.12,
+    "voting_weight": 0.25,
     "veto_power": false
   },
   "SECRETARY": {
@@ -76,7 +76,7 @@
       "Document deliberations, votes, and follow-ups",
       "Ensure transparency and compliance with Rule 6"
     ],
-    "voting_weight": 0.10,
+    "voting_weight": 0.0,
     "veto_power": false
   }
 }

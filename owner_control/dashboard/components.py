@@ -72,7 +72,7 @@ def proposal_card(proposal: Mapping[str, Any]) -> None:
 
 def vote_summary(vote_result: Mapping[str, Any]) -> None:
     """
-    Render a summary of voting results.
+    Render a summary of voting results with voting vs advisory role indicators.
 
     Args:
         vote_result: Mapping containing voting information.
@@ -88,14 +88,100 @@ def vote_summary(vote_result: Mapping[str, Any]) -> None:
 
     with st.container():
         st.subheader("Board Vote Summary")
+        
+        # Load role configs to determine voting vs advisory roles
+        from pathlib import Path
+        import sys
+        import json
+        
+        project_root = Path(__file__).parent.parent.parent
+        role_config_path = project_root / "governance_layer" / "roles" / "role_configs.json"
+        
+        try:
+            with open(role_config_path, "r", encoding="utf-8") as f:
+                role_configs = json.load(f)
+        except Exception:
+            role_configs = {}
+        
+        PRIMARY_VOTERS = {"CEO", "CFO", "COO", "CMO"}
+        VETO_ROLES = {"LEGAL", "CISO"}
+        
         votes = vote_result.get("votes", {})
+        
         if votes:
-            st.dataframe(
-                {"Member": list(votes.keys()), "Weight": list(votes.values())},
-                use_container_width=True,
-            )
+            # Separate voting members from advisory roles
+            voting_members = []
+            advisory_members = []
+            
+            for member_id, weight in votes.items():
+                # Extract role from member_id (e.g., "ceo_agent" -> "CEO")
+                role = member_id.upper().replace("_AGENT", "")
+                
+                role_config = role_configs.get(role, {})
+                is_voter = role in PRIMARY_VOTERS
+                has_veto = role_config.get("veto_power", False)
+                role_name = role_config.get("name", role)
+                
+                member_info = {
+                    "Member": member_id,
+                    "Role": role_name,
+                    "Weight": f"{weight:.1%}" if weight > 0 else "0%",
+                    "Type": "Voting Member" if is_voter else ("Veto Authority" if has_veto else "Advisory"),
+                    "Veto Power": "🔴 Yes" if has_veto else "⚪ No"
+                }
+                
+                if is_voter:
+                    voting_members.append(member_info)
+                else:
+                    advisory_members.append(member_info)
+            
+            # Display voting members
+            if voting_members:
+                st.markdown("### 🗳️ Voting Members (25% each)")
+                voting_df = {
+                    "Role": [m["Role"] for m in voting_members],
+                    "Weight": [m["Weight"] for m in voting_members],
+                    "Member ID": [m["Member"] for m in voting_members]
+                }
+                st.dataframe(voting_df, use_container_width=True)
+            
+            # Display advisory roles
+            if advisory_members:
+                st.markdown("### 📋 Advisory Roles")
+                advisory_df = {
+                    "Role": [m["Role"] for m in advisory_members],
+                    "Type": [m["Type"] for m in advisory_members],
+                    "Veto Power": [m["Veto Power"] for m in advisory_members],
+                    "Member ID": [m["Member"] for m in advisory_members]
+                }
+                st.dataframe(advisory_df, use_container_width=True)
+            
+            # Show decision details
+            decision = vote_result.get("decision")
+            reason = vote_result.get("reason", "")
+            veto_triggered = vote_result.get("veto_triggered", False)
+            chair_tiebreak = vote_result.get("chair_tiebreak_used", False)
+            
+            if decision:
+                col1, col2 = st.columns(2)
+                with col1:
+                    if decision == "approved":
+                        st.success(f"✅ Decision: **{decision.upper()}**")
+                    else:
+                        st.error(f"❌ Decision: **{decision.upper()}**")
+                
+                with col2:
+                    if veto_triggered:
+                        veto_role = vote_result.get("veto_role", "Unknown")
+                        st.warning(f"🚫 Veto by {veto_role}")
+                    elif chair_tiebreak:
+                        chair_vote = vote_result.get("chair_vote", "Unknown")
+                        st.info(f"⚖️ CHAIR tie-breaker: {chair_vote}")
+                    else:
+                        st.info(f"📊 Reason: {reason}")
         else:
             st.info("No votes recorded.")
+        
         st.caption(f"Session ID: {vote_result.get('session_id', 'N/A')}")
 
 
