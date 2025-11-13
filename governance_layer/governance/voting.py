@@ -41,7 +41,13 @@ logger = logging.getLogger(__name__)
 
 def _validate_role_weight_distribution(role_configs: Dict[str, Dict[str, Any]]) -> None:
     """
-    Validate that role weights are Rule 9 compliant and sum to 1.0.
+    Validate that role weights are Rule 9 compliant.
+    
+    Validates:
+    - No single role exceeds 25% voting weight
+    - Only the 4 primary voters (CEO, CFO, COO, CMO) have voting weight
+    - The 4 primary voters sum to exactly 100%
+    - Non-voting roles (CHAIR, LEGAL, CISO, SECRETARY) have 0% weight
     
     Args:
         role_configs: Role configuration dictionary.
@@ -49,28 +55,59 @@ def _validate_role_weight_distribution(role_configs: Dict[str, Dict[str, Any]]) 
     Raises:
         ConstitutionalError: If weight validation fails.
     """
-    weights = [config.get("voting_weight", 0.0) for config in role_configs.values()]
-    total_weight = sum(weights)
-
-    if any(weight > 0.25 for weight in weights):
-        logger.error("Role configuration weight exceeds 25 percent", extra={"weights": weights})
+    PRIMARY_VOTERS = {"CEO", "CFO", "COO", "CMO"}
+    NON_VOTING_ROLES = {"CHAIR", "LEGAL", "CISO", "SECRETARY"}
+    
+    primary_voter_weights = []
+    non_voting_weights = []
+    
+    for role, config in role_configs.items():
+        weight = config.get("voting_weight", 0.0)
+        
+        if role in PRIMARY_VOTERS:
+            primary_voter_weights.append(weight)
+        elif role in NON_VOTING_ROLES:
+            non_voting_weights.append(weight)
+    
+    # Check no single role exceeds 25%
+    all_weights = [config.get("voting_weight", 0.0) for config in role_configs.values()]
+    if any(weight > 0.25 for weight in all_weights):
+        logger.error("Role configuration weight exceeds 25 percent", extra={"weights": all_weights})
         raise ConstitutionalError(
             "Rule 9 Violation: Role configuration assigns more than 25% voting weight"
         )
-
-    if not math.isclose(total_weight, 1.0, rel_tol=1e-9, abs_tol=1e-6):
+    
+    # Check primary voters sum to 100%
+    primary_total = sum(primary_voter_weights)
+    if not math.isclose(primary_total, 1.0, rel_tol=1e-9, abs_tol=1e-6):
         logger.error(
-            "Role configuration weights do not sum to 1.0",
-            extra={"total_weight": total_weight}
+            "Primary voter weights do not sum to 1.0",
+            extra={"primary_total": primary_total, "primary_voters": PRIMARY_VOTERS}
         )
         raise ConstitutionalError(
-            "Rule 9 Violation: Role voting weights must sum to 1.0"
+            f"Rule 9 Violation: Primary voters (CEO, CFO, COO, CMO) must sum to 1.0, got {primary_total:.6f}"
+        )
+    
+    # Check non-voting roles have 0% weight
+    if any(weight != 0.0 for weight in non_voting_weights):
+        logger.error(
+            "Non-voting roles have non-zero weights",
+            extra={"non_voting_weights": non_voting_weights}
+        )
+        raise ConstitutionalError(
+            "Rule 9 Violation: Non-voting roles (CHAIR, LEGAL, CISO, SECRETARY) must have 0% voting weight"
         )
 
 
 def tally_votes(votes: List[Vote], roles: Dict[str, Dict[str, Any]] | None, proposal_id: str) -> VoteResult:
     """
     Tally board votes with constitutional compliance safeguards.
+    
+    Voting Logic:
+    1. Only CEO, CFO, COO, CMO votes count toward the decision (25% each)
+    2. LEGAL and CISO can veto (blocks proposal regardless of votes)
+    3. CHAIR only votes to break 2-2 ties between the 4 primary voters
+    4. SECRETARY does not vote (documentation only)
     
     Args:
         votes: List of Vote objects submitted by board members.
@@ -88,11 +125,8 @@ def tally_votes(votes: List[Vote], roles: Dict[str, Dict[str, Any]] | None, prop
         extra={"proposal_id": proposal_id, "vote_count": len(votes)}
     )
 
-    if len(votes) < 5:
-        logger.error("Insufficient votes for compliance", extra={"vote_count": len(votes)})
-        raise ConstitutionalError(
-            "Rule 8 Violation: Minimum five votes required to ensure board diversity"
-        )
+    PRIMARY_VOTERS = {RoleType.CEO, RoleType.CFO, RoleType.COO, RoleType.CMO}
+    VETO_ROLES = {RoleType.LEGAL, RoleType.CISO}
 
     role_configs = roles if roles else load_role_configs()
     _validate_role_weight_distribution(role_configs)
@@ -101,15 +135,23 @@ def tally_votes(votes: List[Vote], roles: Dict[str, Dict[str, Any]] | None, prop
     if isinstance(role_configs, dict) and "_session_id" in role_configs:
         session_id = str(role_configs["_session_id"])
 
-    approve_weight = 0.0
-    reject_weight = 0.0
-    abstain_weight = 0.0
-    votes_map: Dict[str, float] = {}
+    # Track votes from primary voters only
+    primary_votes: Dict[RoleType, Vote] = {}
+    approve_count = 0
+    reject_count = 0
+    
+    # Track veto votes
     veto_triggered = False
     veto_role: str | None = None
+    
+    # Track CHAIR vote (for tie-breaking)
     chair_vote: Vote | None = None
-    chair_weight = 0.0
+    
+    # Track all votes for logging
+    votes_map: Dict[str, float] = {}
+    abstain_weight = 0.0
 
+    # First pass: collect all votes and check for vetoes
     for vote in votes:
         role_key = vote.role.value.upper()
         if role_key not in role_configs:
@@ -118,79 +160,119 @@ def tally_votes(votes: List[Vote], roles: Dict[str, Dict[str, Any]] | None, prop
                 f"Rule 8 Violation: Vote submitted by undefined role '{role_key}'"
             )
 
-        expected_weight = role_configs[role_key].get("voting_weight")
-        if expected_weight is None:
-            logger.error("Role configuration missing voting weight", extra={"role": role_key})
-            raise ConstitutionalError(
-                f"Rule 9 Violation: Role '{role_key}' lacks assigned voting weight"
-            )
-
-        if not math.isclose(vote.weight, float(expected_weight), abs_tol=1e-6):
-            logger.warning(
-                "Vote weight deviates from configuration; normalizing to expected weight",
-                extra={"role": role_key, "received": vote.weight, "expected": expected_weight}
-            )
-
+        expected_weight = role_configs[role_key].get("voting_weight", 0.0)
         votes_map[vote.member_id] = float(expected_weight)
 
-        if vote.role == RoleType.CHAIR:
-            chair_vote = vote
-            chair_weight = float(expected_weight)
-            if vote.vote_type == VoteType.ABSTAIN:
-                abstain_weight += float(expected_weight)
-            continue
-
-        if vote.vote_type == VoteType.APPROVE:
-            approve_weight += float(expected_weight)
-        elif vote.vote_type == VoteType.REJECT:
-            reject_weight += float(expected_weight)
-        elif vote.vote_type == VoteType.ABSTAIN:
-            abstain_weight += float(expected_weight)
-        elif vote.vote_type == VoteType.VETO:
+        # Check for vetoes first (LEGAL or CISO)
+        if vote.role in VETO_ROLES and vote.vote_type == VoteType.VETO:
             veto_triggered = True
             veto_role = role_key
-            reject_weight += float(expected_weight)
-        else:
-            logger.error("Unsupported vote type detected", extra={"vote_type": vote.vote_type})
-            raise ConstitutionalError(
-                f"Rule 4 Violation: Unsupported vote type '{vote.vote_type.value}' encountered"
-            )
+            logger.info("Veto detected", extra={"role": role_key, "proposal_id": proposal_id})
+            # Veto blocks proposal regardless of other votes, but continue to collect all votes for logging
+        
+        # Track CHAIR vote (for tie-breaking only)
+        if vote.role == RoleType.CHAIR:
+            chair_vote = vote
+            if vote.vote_type == VoteType.ABSTAIN:
+                abstain_weight += float(expected_weight)
+        
+        # Track primary voter votes (CEO, CFO, COO, CMO)
+        if vote.role in PRIMARY_VOTERS:
+            primary_votes[vote.role] = vote
+            if vote.vote_type == VoteType.APPROVE:
+                approve_count += 1
+            elif vote.vote_type == VoteType.REJECT:
+                reject_count += 1
+            elif vote.vote_type == VoteType.ABSTAIN:
+                abstain_weight += float(expected_weight)
+            elif vote.vote_type == VoteType.VETO:
+                # Primary voters should not cast veto (only LEGAL/CISO can)
+                logger.warning(
+                    "Primary voter attempted to cast veto",
+                    extra={"role": role_key, "proposal_id": proposal_id}
+                )
+                reject_count += 1  # Treat as reject
 
+    # Validate we have votes from all 4 primary voters
+    if len(primary_votes) < 4:
+        missing_voters = PRIMARY_VOTERS - set(primary_votes.keys())
+        logger.error(
+            "Missing votes from primary voters",
+            extra={"missing": [v.value for v in missing_voters], "proposal_id": proposal_id}
+        )
+        raise ConstitutionalError(
+            f"Rule 8 Violation: All 4 primary voters (CEO, CFO, COO, CMO) must vote. "
+            f"Missing: {[v.value for v in missing_voters]}"
+        )
+
+    # Decision logic
     decision = "approved"
     decision_reason = "majority"
+    chair_tiebreak_used = False
 
+    # Step 1: Check for veto (veto overrides everything)
     if veto_triggered:
         decision = "rejected"
         decision_reason = f"{veto_role} veto"
-        logger.info("Veto triggered; proposal rejected", extra={"role": veto_role})
-    else:
-        if math.isclose(approve_weight, reject_weight, abs_tol=1e-6):
-            if chair_vote is None:
-                logger.error("Tie without Chair vote available", extra={"proposal_id": proposal_id})
-                raise ConstitutionalError(
-                    "Rule 9 Violation: Chair must participate to resolve voting ties"
-                )
-
-            if chair_vote.vote_type == VoteType.APPROVE:
-                decision = "approved"
-            elif chair_vote.vote_type in {VoteType.REJECT, VoteType.VETO}:
-                decision = "rejected"
-            else:
-                logger.error(
-                    "Chair abstained during tie, violating governance protocol",
-                    extra={"proposal_id": proposal_id}
-                )
-                raise ConstitutionalError(
-                    "Rule 9 Violation: Chair must cast approving or rejecting vote during tie"
-                )
-            decision_reason = "chair_tiebreak"
-            logger.info(
-                "Tie resolved by Chair",
-                extra={"proposal_id": proposal_id, "chair_vote": chair_vote.vote_type.value}
+        logger.info(
+            "Veto triggered; proposal rejected",
+            extra={"role": veto_role, "proposal_id": proposal_id}
+        )
+    # Step 2: Check for 2-2 tie (requires CHAIR tie-breaker)
+    elif approve_count == 2 and reject_count == 2:
+        if chair_vote is None:
+            logger.error(
+                "2-2 tie without Chair vote available",
+                extra={"proposal_id": proposal_id, "approve_count": approve_count, "reject_count": reject_count}
             )
+            raise ConstitutionalError(
+                "Rule 9 Violation: 2-2 tie requires Chair to cast tie-breaking vote"
+            )
+        
+        if chair_vote.vote_type == VoteType.APPROVE:
+            decision = "approved"
+        elif chair_vote.vote_type == VoteType.REJECT:
+            decision = "rejected"
         else:
-            decision = "approved" if approve_weight > reject_weight else "rejected"
-            decision_reason = "weighted_majority"
+            logger.error(
+                "Chair abstained during 2-2 tie, violating governance protocol",
+                extra={"proposal_id": proposal_id, "chair_vote_type": chair_vote.vote_type.value}
+            )
+            raise ConstitutionalError(
+                "Rule 9 Violation: Chair must cast APPROVE or REJECT vote during 2-2 tie (cannot abstain)"
+            )
+        
+        decision_reason = "chair_tiebreak"
+        chair_tiebreak_used = True
+        logger.info(
+            "2-2 tie resolved by Chair",
+            extra={
+                "proposal_id": proposal_id,
+                "chair_vote": chair_vote.vote_type.value,
+                "decision": decision
+            }
+        )
+    # Step 3: Majority decision (3-1 or 4-0)
+    else:
+        if approve_count > reject_count:
+            decision = "approved"
+            decision_reason = "majority_approval"
+        elif reject_count > approve_count:
+            decision = "rejected"
+            decision_reason = "majority_rejection"
+        else:
+            # This should not happen if we have exactly 4 votes
+            logger.error(
+                "Unexpected vote count",
+                extra={"approve_count": approve_count, "reject_count": reject_count, "proposal_id": proposal_id}
+            )
+            raise ConstitutionalError(
+                f"Rule 9 Violation: Unexpected vote distribution. Approve: {approve_count}, Reject: {reject_count}"
+            )
+
+    # Calculate weights for logging (only from primary voters)
+    approve_weight = approve_count * 0.25
+    reject_weight = reject_count * 0.25
 
     vote_result = create_vote_result(
         session_id=session_id or f"{proposal_id}-session",
@@ -214,26 +296,34 @@ def tally_votes(votes: List[Vote], roles: Dict[str, Dict[str, Any]] | None, prop
 
     logger.info(
         "Votes tallied successfully",
-        extra={"proposal_id": proposal_id, "decision": decision}
+        extra={
+            "proposal_id": proposal_id,
+            "decision": decision,
+            "reason": decision_reason,
+            "approve_count": approve_count,
+            "reject_count": reject_count,
+            "veto_triggered": veto_triggered,
+            "chair_tiebreak": chair_tiebreak_used
+        }
     )
 
-    log_approve_weight = approve_weight
-    log_reject_weight = reject_weight
-    if chair_vote and chair_vote.vote_type == VoteType.APPROVE and decision == "approved":
-        log_approve_weight += chair_weight
-    if chair_vote and chair_vote.vote_type in {VoteType.REJECT, VoteType.VETO} and decision == "rejected":
-        log_reject_weight += chair_weight
-
+    # Log the vote tally
     try:
         log_event(
             event_type="board_vote_tallied",
             data={
                 "proposal_id": proposal_id,
-                "approve_weight": log_approve_weight,
-                "reject_weight": log_reject_weight,
-                "abstain_weight": abstain_weight if chair_vote is None or chair_vote.vote_type != VoteType.ABSTAIN else abstain_weight,
+                "approve_count": approve_count,
+                "reject_count": reject_count,
+                "approve_weight": approve_weight,
+                "reject_weight": reject_weight,
+                "abstain_weight": abstain_weight,
                 "decision": decision,
-                "reason": decision_reason
+                "reason": decision_reason,
+                "veto_triggered": veto_triggered,
+                "veto_role": veto_role,
+                "chair_tiebreak_used": chair_tiebreak_used,
+                "chair_vote": chair_vote.vote_type.value if chair_vote else None
             },
             metadata={"function": "tally_votes"}
         )
