@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
+from datetime import datetime
 
 import streamlit as st
 
@@ -19,56 +21,28 @@ from config_settings.config import get_settings
 from constitutional_layer_immutable.constitution import (
     validate_constitutional_compliance,
 )
-from models.core import ConstitutionalError
+from models.core import ConstitutionalError, ProposalStatus
 from owner_control.dashboard.components import (
     constitutional_compliance_indicator,
     execution_log_viewer,
     proposal_card,
     vote_summary,
+    deliberation_viewer,
+    role_structure_display,
+)
+from owner_control.dashboard.data_retrieval import (
+    get_all_proposals,
+    get_proposal_by_id,
+    get_pending_owner_approvals,
+    get_governance_events_for_proposal,
 )
 from owner_control.owner_gate.signature import sign_action
 from utilities.logger import get_recent_logs, log_event
 
+# Import governance cycle runner
+from governance_layer.orchestrator.langgraph_state_machine import run_governance_cycle
+
 logger = logging.getLogger(__name__)
-
-
-def _initialize_session_state() -> None:
-    """Ensure session state contains baseline data."""
-    if "current_proposal" not in st.session_state:
-        st.session_state["current_proposal"] = {
-            "id": "proposal-001",
-            "title": "Launch New AI Service",
-            "description": "Deploy AI-driven analytics for enterprise clients.",
-            "financial_impact": 150000.0,
-            "legal_risk": 0.15,
-            "status": "deliberation",
-            "board_approved": False,
-            "owner_authorized": False,
-        }
-
-    if "vote_result" not in st.session_state:
-        st.session_state["vote_result"] = {
-            "session_id": "session-001",
-            "proposal_id": st.session_state["current_proposal"]["id"],
-            "votes": {
-                "ceo_agent": 0.2,
-                "cfo_agent": 0.2,
-                "coo_agent": 0.2,
-                "cmo_agent": 0.2,
-                "legal_agent": 0.2,
-            },
-        }
-
-
-def _build_authorization_payload(
-    owner_id: str, proposal: Mapping[str, Any]
-) -> Mapping[str, Any]:
-    """Build payload used for owner authorization signatures."""
-    return {
-        "action": "execute_decision",
-        "proposal": dict(proposal),
-        "owner_id": owner_id,
-    }
 
 
 def _log_dashboard_event(event_type: str, data: Mapping[str, Any]) -> None:
@@ -86,20 +60,142 @@ def _log_dashboard_event(event_type: str, data: Mapping[str, Any]) -> None:
         )
 
 
+def _create_proposal_form() -> Optional[dict]:
+    """Render proposal creation form and return proposal dict if submitted."""
+    with st.expander("➕ Create New Proposal", expanded=False):
+        with st.form("create_proposal_form"):
+            proposal_id = st.text_input(
+                "Proposal ID",
+                value=f"proposal-{uuid.uuid4().hex[:8]}",
+                help="Unique identifier for this proposal"
+            )
+            title = st.text_input("Title", placeholder="Enter proposal title")
+            description = st.text_area(
+                "Description",
+                placeholder="Enter detailed proposal description",
+                height=150
+            )
+            col1, col2 = st.columns(2)
+            with col1:
+                financial_impact = st.number_input(
+                    "Financial Impact ($)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=1000.0,
+                    format="%.2f"
+                )
+            with col2:
+                legal_risk = st.slider(
+                    "Legal Risk Score",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.0,
+                    step=0.01,
+                    help="Legal risk assessment (0.0 = no risk, 1.0 = high risk)"
+                )
+            
+            submitted = st.form_submit_button("Submit Proposal", type="primary")
+            
+            if submitted:
+                if not title or not description:
+                    st.error("Title and description are required.")
+                    return None
+                
+                proposal = {
+                    "id": proposal_id,
+                    "title": title,
+                    "description": description,
+                    "financial_impact": financial_impact,
+                    "legal_risk": legal_risk,
+                    "status": ProposalStatus.DRAFT.value,
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat(),
+                }
+                
+                # Log proposal creation
+                _log_dashboard_event(
+                    event_type="proposal_created",
+                    data=proposal
+                )
+                
+                return proposal
+    
+    return None
+
+
+def _run_governance_cycle_for_proposal(proposal: dict) -> None:
+    """Run governance cycle for a proposal and show progress."""
+    try:
+        with st.spinner("Running governance cycle..."):
+            # Create a status container
+            status_container = st.empty()
+            
+            status_container.info("🔄 Starting governance cycle...")
+            
+            # Run the governance cycle
+            result = run_governance_cycle(
+                proposal=proposal,
+                owner_signature=None,
+                owner_id=get_settings().owner_id
+            )
+            
+            status_container.success("✅ Governance cycle completed!")
+            
+            # Log the result
+            _log_dashboard_event(
+                event_type="dashboard_governance_cycle_triggered",
+                data={
+                    "proposal_id": proposal.get("id"),
+                    "status": "completed"
+                }
+            )
+            
+            st.balloons()
+            st.info("Proposal has been processed through the governance workflow. Check the proposal list to see results.")
+            
+    except ConstitutionalError as exc:
+        st.error(f"Constitutional error: {exc}")
+        _log_dashboard_event(
+            event_type="dashboard_governance_cycle_error",
+            data={
+                "proposal_id": proposal.get("id"),
+                "error": str(exc)
+            }
+        )
+    except Exception as exc:
+        st.error(f"Error running governance cycle: {exc}")
+        logger.exception("Governance cycle failed")
+        _log_dashboard_event(
+            event_type="dashboard_governance_cycle_error",
+            data={
+                "proposal_id": proposal.get("id"),
+                "error": str(exc)
+            }
+        )
+
+
+def _build_authorization_payload(
+    owner_id: str, proposal: Mapping[str, Any]
+) -> Mapping[str, Any]:
+    """Build payload used for owner authorization signatures."""
+    return {
+        "action": "execute_decision",
+        "proposal": dict(proposal),
+        "owner_id": owner_id,
+    }
+
+
 def main() -> None:
     """Render the Streamlit dashboard for owner oversight."""
     st.set_page_config(page_title="AI Business Owner Dashboard", layout="wide")
 
     settings = get_settings()
-    _initialize_session_state()
-
-    current_proposal = st.session_state["current_proposal"]
-    vote_result_data = st.session_state["vote_result"]
-
-    authorization_payload = _build_authorization_payload(
-        owner_id=settings.owner_id or "unknown_owner",
-        proposal=current_proposal,
-    )
+    
+    # Initialize session state
+    if "selected_proposal_id" not in st.session_state:
+        st.session_state["selected_proposal_id"] = None
+    if "refresh_trigger" not in st.session_state:
+        st.session_state["refresh_trigger"] = 0
 
     validation = validate_constitutional_compliance(
         action={
@@ -131,28 +227,9 @@ def main() -> None:
         },
     )
 
-    if (
-        settings.owner_auth_mode.upper() == "MOCK"
-        and "owner_signature" not in st.session_state
-    ):
-        try:
-            mock_signature = sign_action(
-                owner_id=settings.owner_id or "unknown_owner",
-                payload=authorization_payload,
-            )
-            st.session_state["owner_signature"] = mock_signature
-            logger.info(
-                "Mock signature auto-generated",
-                extra={
-                    "event": "dashboard_mock_signature_generated",
-                    "owner_id": settings.owner_id,
-                },
-            )
-        except ConstitutionalError as exc:
-            st.error(f"Failed to generate mock signature: {exc}")
-
-    st.title("Owner Oversight Console")
-
+    st.title("🏛️ AI Business Governance Dashboard")
+    
+    # Sidebar
     with st.sidebar:
         st.header("Owner Controls")
         st.metric("Authorization Mode", settings.owner_auth_mode)
@@ -164,97 +241,234 @@ def main() -> None:
             value=settings.owner_gate_enabled,
             disabled=True,
         )
+        
+        st.divider()
+        
+        # Refresh button
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            st.session_state["refresh_trigger"] += 1
+            st.rerun()
+        
+        # Display role structure
+        st.header("Board Structure")
+        role_structure_display()
 
-    proposal_card(current_proposal)
-    vote_summary(vote_result_data)
-    constitutional_compliance_indicator(
-        is_compliant=validation.is_compliant, details=compliance_details
-    )
+    # Main content tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Proposals", "➕ Create Proposal", "⏳ Pending Approvals", "📊 Audit Trail"])
 
-    signature_placeholder = st.empty()
-    signature_actions = st.container()
-
-    with signature_actions:
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("Approve Proposal"):
-                logger.info(
-                    "Approve proposal clicked",
-                    extra={"event": "dashboard_approve_clicked"},
-                )
-                _log_dashboard_event(
-                    event_type="dashboard_approve_clicked",
-                    data={"proposal_id": current_proposal.get("id")},
-                )
-                current_proposal["status"] = "approved"
-                st.success("Proposal marked as approved.")
-
-        with col2:
-            if st.button("Reject Proposal"):
-                logger.info(
-                    "Reject proposal clicked",
-                    extra={"event": "dashboard_reject_clicked"},
-                )
-                _log_dashboard_event(
-                    event_type="dashboard_reject_clicked",
-                    data={"proposal_id": current_proposal.get("id")},
-                )
-                current_proposal["status"] = "rejected"
-                st.warning("Proposal marked as rejected.")
-
-        with col3:
-            if st.button("Generate Approval Signature"):
-                logger.info(
-                    "Generate approval signature clicked",
-                    extra={"event": "dashboard_signature_button_clicked"},
-                )
-                _log_dashboard_event(
-                    event_type="dashboard_signature_clicked",
-                    data={"proposal_id": current_proposal.get("id")},
-                )
-                try:
-                    signature = sign_action(
-                        owner_id=settings.owner_id or "unknown_owner",
-                        payload=authorization_payload,
-                    )
-                    st.session_state["owner_signature"] = signature
-                    signature_placeholder.code(signature)
-                    st.success("Signature generated. Copy and provide to orchestrator.")
-                    logger.info(
-                        "Owner signature generated",
-                        extra={"event": "dashboard_signature_generated"},
-                    )
-                except ConstitutionalError as exc:
-                    st.error(f"Failed to generate signature: {exc}")
-                    logger.error(
-                        "Signature generation failed",
-                        extra={
-                            "event": "dashboard_signature_failed",
-                            "error": str(exc),
-                        },
-                    )
-
-    if "owner_signature" in st.session_state:
-        signature_placeholder.code(st.session_state["owner_signature"])
-
-    if settings.owner_auth_mode.upper() == "MOCK":
-        if st.button("Execute with Mock Signature"):
-            logger.info(
-                "Execute with mock signature clicked",
-                extra={"event": "dashboard_mock_execute_clicked"},
+    with tab1:
+        st.header("All Proposals")
+        
+        # Get all proposals
+        proposals = get_all_proposals(limit=50)
+        
+        if not proposals:
+            st.info("No proposals found. Create a new proposal to get started.")
+        else:
+            # Proposal selector
+            proposal_options = {f"{p['id']} - {p.get('title', 'Untitled')}": p['id'] for p in proposals}
+            selected_label = st.selectbox(
+                "Select Proposal",
+                options=list(proposal_options.keys()),
+                index=0 if proposals else None,
+                key="proposal_selector"
             )
-            _log_dashboard_event(
-                event_type="dashboard_mock_execute_clicked",
-                data={"proposal_id": current_proposal.get("id")},
-            )
-            st.info("Execution triggered with mock signature (simulation mode).")
+            
+            if selected_label:
+                selected_proposal_id = proposal_options[selected_label]
+                st.session_state["selected_proposal_id"] = selected_proposal_id
+                
+                # Get full proposal data
+                proposal = get_proposal_by_id(selected_proposal_id)
+                
+                if proposal:
+                    # Display proposal details
+                    proposal_card(proposal)
+                    
+                    # Display vote summary if available
+                    if proposal.get("vote_result"):
+                        vote_summary(proposal["vote_result"])
+                    
+                    # Display deliberations
+                    if proposal.get("deliberation_responses"):
+                        deliberation_viewer(proposal["deliberation_responses"])
+                    
+                    # Display constitutional compliance
+                    constitutional_compliance_indicator(
+                        is_compliant=validation.is_compliant,
+                        details=compliance_details
+                    )
+                    
+                    # Owner actions
+                    st.divider()
+                    st.subheader("Owner Actions")
+                    
+                    vote_result = proposal.get("vote_result")
+                    can_approve = (
+                        vote_result and 
+                        vote_result.get("decision") == "approved" and
+                        not proposal.get("owner_authorized", False)
+                    )
+                    
+                    if can_approve:
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            if st.button("✅ Approve & Sign", type="primary", use_container_width=True):
+                                try:
+                                    authorization_payload = _build_authorization_payload(
+                                        owner_id=settings.owner_id or "unknown_owner",
+                                        proposal=proposal,
+                                    )
+                                    signature = sign_action(
+                                        owner_id=settings.owner_id or "unknown_owner",
+                                        payload=authorization_payload,
+                                    )
+                                    
+                                    # Log owner approval
+                                    _log_dashboard_event(
+                                        event_type="owner_proposal_approved",
+                                        data={
+                                            "proposal_id": proposal["id"],
+                                            "signature": signature,
+                                            "owner_id": settings.owner_id
+                                        }
+                                    )
+                                    
+                                    st.success("✅ Proposal approved and signed!")
+                                    st.code(signature, language="text")
+                                    
+                                    # Update proposal status
+                                    proposal["owner_authorized"] = True
+                                    
+                                except ConstitutionalError as exc:
+                                    st.error(f"Failed to approve: {exc}")
+                        
+                        with col2:
+                            if st.button("❌ Reject", use_container_width=True):
+                                _log_dashboard_event(
+                                    event_type="owner_proposal_rejected",
+                                    data={
+                                        "proposal_id": proposal["id"],
+                                        "owner_id": settings.owner_id
+                                    }
+                                )
+                                st.warning("Proposal rejected by owner.")
+                    else:
+                        if proposal.get("owner_authorized"):
+                            st.success("✅ This proposal has been approved by the owner.")
+                        elif vote_result and vote_result.get("decision") != "approved":
+                            st.info(f"Board decision: {vote_result.get('decision', 'unknown')}. Owner approval not required.")
+                        else:
+                            st.info("⏳ Waiting for board decision...")
+                    
+                    # Show governance events timeline
+                    st.divider()
+                    st.subheader("Governance Timeline")
+                    events = get_governance_events_for_proposal(selected_proposal_id)
+                    if events:
+                        for event in events[-10:]:  # Show last 10 events
+                            event_type = event.get("type", "unknown")
+                            timestamp = event.get("timestamp", "")
+                            data = event.get("data", {})
+                            
+                            with st.expander(f"{event_type} - {timestamp[:19] if timestamp else 'Unknown time'}"):
+                                st.json(data)
+                    else:
+                        st.info("No governance events found for this proposal.")
+                else:
+                    st.warning(f"Proposal {selected_proposal_id} not found.")
 
-    recent_logs = get_recent_logs(limit=50)
-    execution_log_viewer(recent_logs)
+    with tab2:
+        st.header("Create New Proposal")
+        
+        new_proposal = _create_proposal_form()
+        
+        if new_proposal:
+            st.success("Proposal created! Starting governance cycle...")
+            
+            # Run governance cycle
+            _run_governance_cycle_for_proposal(new_proposal)
+            
+            # Refresh to show new proposal
+            st.session_state["refresh_trigger"] += 1
+            st.rerun()
+
+    with tab3:
+        st.header("Pending Owner Approvals")
+        
+        pending = get_pending_owner_approvals()
+        
+        if not pending:
+            st.success("✅ No pending approvals. All board-approved proposals have been authorized.")
+        else:
+            st.info(f"Found {len(pending)} proposal(s) awaiting owner approval.")
+            
+            for proposal in pending:
+                with st.container():
+                    st.subheader(f"{proposal.get('title', 'Untitled')} ({proposal.get('id')})")
+                    
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.write(f"**Description:** {proposal.get('description', 'N/A')}")
+                        st.write(f"**Financial Impact:** ${proposal.get('financial_impact', 0):,.2f}")
+                        st.write(f"**Legal Risk:** {proposal.get('legal_risk', 0):.2f}")
+                        
+                        if proposal.get("vote_result"):
+                            vote_result = proposal["vote_result"]
+                            st.write(f"**Board Decision:** {vote_result.get('decision', 'unknown')}")
+                            if vote_result.get("veto_triggered"):
+                                st.warning(f"⚠️ Veto by {vote_result.get('veto_role')}")
+                    
+                    with col2:
+                        authorization_payload = _build_authorization_payload(
+                            owner_id=settings.owner_id or "unknown_owner",
+                            proposal=proposal,
+                        )
+                        
+                        if st.button("✅ Approve", key=f"approve_{proposal['id']}", use_container_width=True):
+                            try:
+                                signature = sign_action(
+                                    owner_id=settings.owner_id or "unknown_owner",
+                                    payload=authorization_payload,
+                                )
+                                
+                                _log_dashboard_event(
+                                    event_type="owner_proposal_approved",
+                                    data={
+                                        "proposal_id": proposal["id"],
+                                        "signature": signature,
+                                        "owner_id": settings.owner_id
+                                    }
+                                )
+                                
+                                st.success("✅ Approved!")
+                                st.code(signature, language="text")
+                                st.rerun()
+                                
+                            except ConstitutionalError as exc:
+                                st.error(f"Failed: {exc}")
+                        
+                        if st.button("❌ Reject", key=f"reject_{proposal['id']}", use_container_width=True):
+                            _log_dashboard_event(
+                                event_type="owner_proposal_rejected",
+                                data={
+                                    "proposal_id": proposal["id"],
+                                    "owner_id": settings.owner_id
+                                }
+                            )
+                            st.warning("Rejected.")
+                            st.rerun()
+                    
+                    st.divider()
+
+    with tab4:
+        st.header("Audit Trail")
+        
+        recent_logs = get_recent_logs(limit=100)
+        execution_log_viewer(recent_logs)
 
 
 if __name__ == "__main__":
     main()
-
-

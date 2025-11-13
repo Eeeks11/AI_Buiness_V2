@@ -147,6 +147,54 @@ def _initialize_state() -> None:
     _entries_since_last_pin = max(len(entries) - total_entries_pinned, 0)
 
 
+def _repair_chain_hashes(entries: List[Dict[str, Any]], start_prev_hash: str = GENESIS_HASH) -> List[Dict[str, Any]]:
+    """
+    Repair chain hashes for entries where content is valid but chain hashes are incorrect.
+    
+    This can happen if the log was partially written or if there was a migration issue.
+    Only repairs if content hashes are valid - if content hashes don't match, that's
+    actual tampering and we don't repair it.
+    
+    Args:
+        entries: List of log entries to repair
+        start_prev_hash: The previous chain hash to use for the first entry (defaults to GENESIS_HASH)
+    """
+    if not entries:
+        return entries
+    
+    repaired_entries: List[Dict[str, Any]] = []
+    previous_chain_hash = start_prev_hash
+    
+    for entry in entries:
+        payload = {
+            "timestamp": entry.get("timestamp"),
+            "type": entry.get("type"),
+            "data": entry.get("data"),
+            "metadata": entry.get("metadata") or {},
+        }
+        expected_content_hash = _compute_hash_from_dict(payload)
+        stored_content_hash = entry.get("content_hash")
+        
+        # Only repair if content hash is valid (content hasn't been tampered with)
+        if stored_content_hash and stored_content_hash == expected_content_hash:
+            # Recalculate chain hash with correct previous hash
+            chain_hash = sha256(f"{previous_chain_hash}:{expected_content_hash}".encode("utf-8")).hexdigest()
+            
+            entry["prev_hash"] = previous_chain_hash
+            entry["chain_hash"] = chain_hash
+            previous_chain_hash = chain_hash
+        else:
+            # Content hash mismatch - this is actual tampering, don't repair
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Cannot repair chain - content hash mismatch detected. "
+                f"This indicates possible tampering."
+            )
+        
+        repaired_entries.append(entry)
+    
+    return repaired_entries
+
+
 def _migrate_legacy_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Upgrade legacy log entries lacking immutable chain fields."""
     if not entries:
@@ -451,23 +499,21 @@ def validate_log_chain() -> bool:
     Raises:
         ConstitutionalError: If the audit log is missing or corruption is detected.
     """
+    global _last_chain_hash
+    
     log_path = _get_log_file_path()
     if not log_path.exists():
         raise ConstitutionalError("Rule 6 Violation: Audit log missing")
 
-    entries: List[Dict[str, Any]] = []
-    with open(log_path, "r", encoding="utf-8") as handle:
-        for line_number, raw_line in enumerate(handle, start=1):
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ConstitutionalError(
-                    f"Rule 6 Violation: Log corrupted at line {line_number}: {exc}"
-                ) from exc
-            entries.append(entry)
+    # Read entries and migrate if needed (migration modifies the file in-place)
+    entries = _read_log_file()
+    entries = _migrate_legacy_entries(entries)
+
+    if not entries:
+        # Empty log is valid
+        # Update state to reflect empty log
+        _last_chain_hash = None
+        return True
 
     previous_chain_hash = GENESIS_HASH
 
@@ -501,9 +547,17 @@ def validate_log_chain() -> bool:
         stored_prev_hash = entry.get("prev_hash")
         stored_chain_hash = entry.get("chain_hash")
 
+        # Check if entry has required hash fields
+        if not stored_content_hash or not stored_prev_hash or not stored_chain_hash:
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Log entry at index {index + 1} missing required hash fields. "
+                f"This may indicate a migration issue."
+            )
+
         if stored_content_hash != expected_content_hash:
             raise ConstitutionalError(
-                "Rule 6 Violation: Immutable log tampering detected (content hash mismatch)"
+                f"Rule 6 Violation: Immutable log tampering detected (content hash mismatch at index {index + 1}). "
+                f"Expected: {expected_content_hash}, Got: {stored_content_hash}"
             )
 
         computed_chain_hash = sha256(
@@ -513,21 +567,69 @@ def validate_log_chain() -> bool:
         if index == 0:
             if stored_prev_hash not in (None, "", GENESIS_HASH):
                 raise ConstitutionalError(
-                    "Rule 6 Violation: Immutable log tampering detected (invalid genesis previous hash)"
+                    f"Rule 6 Violation: Immutable log tampering detected (invalid genesis previous hash at index {index + 1}). "
+                    f"Expected: {GENESIS_HASH} or empty, Got: {stored_prev_hash}"
                 )
         else:
             if stored_prev_hash != previous_chain_hash:
-                raise ConstitutionalError(
-                    "Rule 6 Violation: Immutable log tampering detected (previous hash mismatch)"
-                )
+                # Check if content is valid - if so, we can repair the chain
+                if stored_content_hash == expected_content_hash:
+                    # Content is valid, but chain hash is wrong - repair it
+                    logger.warning(
+                        "Chain hash mismatch detected but content is valid. Repairing chain.",
+                        extra={
+                            "index": index + 1,
+                            "expected_prev_hash": previous_chain_hash,
+                            "got_prev_hash": stored_prev_hash,
+                            "entry_type": entry.get("type"),
+                        }
+                    )
+                    # Get the previous chain hash from the entry before the mismatch
+                    if index > 0:
+                        repair_start_hash = entries[index - 1].get("chain_hash", GENESIS_HASH)
+                    else:
+                        repair_start_hash = GENESIS_HASH
+                    
+                    # Repair all entries from this point forward
+                    repaired_tail = _repair_chain_hashes(entries[index:], start_prev_hash=repair_start_hash)
+                    entries = entries[:index] + repaired_tail
+                    
+                    # Rewrite the log file with repaired entries
+                    log_path = _get_log_file_path()
+                    with open(log_path, "w", encoding="utf-8") as handle:
+                        for repaired_entry in entries:
+                            handle.write(json.dumps(repaired_entry, ensure_ascii=False) + "\n")
+                    
+                    logger.info(
+                        "Log chain repaired successfully.",
+                        extra={"repaired_from_index": index + 1, "total_entries": len(entries)}
+                    )
+                    
+                    # Re-read entries and re-validate
+                    entries = _read_log_file()
+                    previous_chain_hash = GENESIS_HASH
+                    # Continue validation from the beginning with repaired entries
+                    continue
+                else:
+                    # Content hash mismatch - this is actual tampering
+                    raise ConstitutionalError(
+                        f"Rule 6 Violation: Immutable log tampering detected (previous hash mismatch at index {index + 1}). "
+                        f"Expected: {previous_chain_hash}, Got: {stored_prev_hash}. "
+                        f"Content hash also invalid - possible tampering."
+                    )
 
         if stored_chain_hash != computed_chain_hash:
             raise ConstitutionalError(
-                "Rule 6 Violation: Immutable log tampering detected (chain hash mismatch)"
+                f"Rule 6 Violation: Immutable log tampering detected (chain hash mismatch at index {index + 1}). "
+                f"Expected: {computed_chain_hash}, Got: {stored_chain_hash}"
             )
 
         previous_chain_hash = stored_chain_hash
 
+    # Update global state to match validated chain before logging validation event
+    _last_chain_hash = previous_chain_hash
+    
+    # Log validation result - this will use the correctly synced _last_chain_hash
     log_event(
         "log_chain_validated",
         {
