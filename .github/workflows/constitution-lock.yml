@@ -2,10 +2,22 @@ name: Constitution Lock & Architectural Consistency
 
 on:
   pull_request:
+    paths:
+      - 'constitutional_layer_immutable/**'
+      - 'memory_systems/codebase_memory/**'
+      - 'tests_ci_cd/**'
+      - '**/*.py'
+      - '.github/workflows/constitution-lock.yml'
   push:
     branches:
       - main
       - master
+    paths:
+      - 'constitutional_layer_immutable/**'
+      - 'memory_systems/codebase_memory/**'
+      - 'tests_ci_cd/**'
+      - '**/*.py'
+      - '.github/workflows/constitution-lock.yml'
 
 jobs:
   protect-immutable-files:

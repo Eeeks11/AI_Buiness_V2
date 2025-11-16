@@ -38,25 +38,27 @@ class Settings(BaseSettings):
     mistral_api_key: Optional[str] = Field(None, description="Mistral API key")
 
     # Preferred model versions (Rule 8 transparency)
+    # These are loaded from environment variables - set in .env file
+    # Defaults are provided as fallback for development/testing only
     openai_version: str = Field(
-        default="gpt-5",
-        description="Preferred OpenAI model version identifier"
+        default="gpt-4o",
+        description="Preferred OpenAI model version identifier (set OPENAI_VERSION in .env)"
     )
     anthropic_version: str = Field(
-        default="claude-sonnet-4-5-20250929",
-        description="Preferred Anthropic model version identifier"
+        default="claude-3-5-sonnet-20241022",
+        description="Preferred Anthropic model version identifier (set ANTHROPIC_VERSION in .env)"
     )
     google_version: str = Field(
-        default="gemini-2.5-pro",
-        description="Preferred Google model version identifier"
+        default="gemini-1.5-pro",
+        description="Preferred Google model version identifier (set GOOGLE_VERSION in .env)"
     )
     xai_version: str = Field(
-        default="grok-4-0709",
-        description="Preferred xAI model version identifier"
+        default="grok-beta",
+        description="Preferred xAI model version identifier (set XAI_VERSION in .env)"
     )
     mistral_version: str = Field(
         default="mistral-large-latest",
-        description="Preferred Mistral model version identifier"
+        description="Preferred Mistral model version identifier (set MISTRAL_VERSION in .env)"
     )
     
     # Owner Authentication (Rule 10)
