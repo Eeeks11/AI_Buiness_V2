@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import sys
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+
+# Set UTF-8 encoding for Windows console compatibility
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -18,7 +24,8 @@ init(autoreset=True)
 
 def print_check(name: str, passed: bool, details: str = "") -> None:
     """Print color-coded health check result."""
-    status = f"{Fore.GREEN}✓ PASS{Style.RESET_ALL}" if passed else f"{Fore.RED}✗ FAIL{Style.RESET_ALL}"
+    # Use ASCII-safe characters for Windows compatibility
+    status = f"{Fore.GREEN}[PASS]{Style.RESET_ALL}" if passed else f"{Fore.RED}[FAIL]{Style.RESET_ALL}"
     print(f"{status} {name}")
     if details:
         print(f"     {details}")
@@ -104,9 +111,11 @@ def _run_log_chain_check(results: List[Dict[str, Any]]) -> bool:
         print_check("Log Chain Integrity", passed, detail)
         return passed
     except Exception as exc:
-        detail = f"Error: {exc}"
+        detail = f"Error: {str(exc)}"
         results.append({"name": "Log Chain Integrity", "passed": False, "details": detail})
         print_check("Log Chain Integrity", False, detail)
+        import traceback
+        print(f"     Full traceback: {traceback.format_exc()}")
         return False
 
 
@@ -170,9 +179,9 @@ def run_health_checks() -> bool:
 
     print("\n" + "=" * 60)
     if all_passed:
-        print(f"{Fore.GREEN}✓ ALL CHECKS PASSED{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[PASS] ALL CHECKS PASSED{Style.RESET_ALL}")
     else:
-        print(f"{Fore.RED}✗ SOME CHECKS FAILED{Style.RESET_ALL}")
+        print(f"{Fore.RED}[FAIL] SOME CHECKS FAILED{Style.RESET_ALL}")
     print("=" * 60 + "\n")
 
     generate_health_report(results, all_passed)
