@@ -11,7 +11,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import sys
 
 # Third-party
@@ -36,6 +36,58 @@ sys.path.insert(0, str(project_root / "memory_systems" / "business_memory" / "me
 from access_control import validate_memory_operation
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_temperature(model_name: str, requested: float) -> float:
+    """
+    Adjust temperature for models (like GPT-5) that only support fixed values.
+    """
+    normalized = (model_name or "").strip().lower()
+    if normalized.startswith("gpt-5") and requested != 1.0:
+        logger.info(
+            "Adjusting temperature to 1.0 for fixed-temperature model",
+            extra={"model_name": model_name, "requested_temperature": requested},
+        )
+        return 1.0
+    return requested
+
+
+def _extract_embedding_vector(response: Any) -> List[float]:
+    """
+    Normalize LiteLLM embedding responses that may return objects or plain dicts.
+    """
+    data = getattr(response, "data", None)
+    if data is None and isinstance(response, dict):
+        data = response.get("data")
+    if not data:
+        raise ConstitutionalError(
+            "Rule 6 Violation: Embedding response did not include any data entries."
+        )
+
+    first_entry = data[0]
+    if isinstance(first_entry, dict):
+        vector = first_entry.get("embedding") or first_entry.get("values")
+    else:
+        vector = getattr(first_entry, "embedding", None)
+        if vector is None and hasattr(first_entry, "__getitem__"):
+            try:
+                vector = first_entry["embedding"]  # type: ignore[index]
+            except Exception:
+                vector = None
+
+    if vector is None:
+        raise ConstitutionalError(
+            "Rule 6 Violation: Embedding response missing embedding vector."
+        )
+
+    if isinstance(vector, list):
+        return vector
+    if isinstance(vector, (tuple, set)):
+        return list(vector)
+
+    raise ConstitutionalError(
+        "Rule 6 Violation: Embedding response returned vector in unsupported format."
+    )
 
 
 # ChromaDB client and collection
@@ -148,14 +200,16 @@ def embed_decision(
         
         # Create document text for embedding
         document_text = f"Meeting: {meeting_id}\nSummary: {summary}\nOutcome: {outcome}"
-        
+
         # Generate embedding using LiteLLM (supports OpenAI embeddings)
         try:
             embedding_response = litellm.embedding(
                 model="text-embedding-3-small",
                 input=[document_text]
             )
-            embedding = embedding_response.data[0].embedding
+            embedding = _extract_embedding_vector(embedding_response)
+        except ConstitutionalError:
+            raise
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}", exc_info=True)
             raise ConstitutionalError(
@@ -249,11 +303,19 @@ def recall_relevant_decisions(query: str, n_results: int = 5) -> List[Dict]:
         collection = _get_collection()
         
         # Generate query embedding
-        embedding_response = litellm.embedding(
-            model="text-embedding-3-small",
-            input=[query]
-        )
-        query_embedding = embedding_response.data[0].embedding
+        try:
+            embedding_response = litellm.embedding(
+                model="text-embedding-3-small",
+                input=[query]
+            )
+            query_embedding = _extract_embedding_vector(embedding_response)
+        except ConstitutionalError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to generate query embedding: {e}", exc_info=True)
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Failed to recall relevant decisions. Embedding error: {e}"
+            )
         
         # Query ChromaDB
         results = collection.query(
@@ -368,6 +430,7 @@ def get_trend_analysis(topic: str) -> str:
     
     try:
         # Call LLM via LiteLLM
+        effective_temperature = _coerce_temperature(model_name, 0.7)
         response = litellm.completion(
             model=model_name,
             messages=[
@@ -377,7 +440,7 @@ def get_trend_analysis(topic: str) -> str:
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
+            temperature=effective_temperature,
             max_tokens=2000
         )
         

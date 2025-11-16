@@ -179,7 +179,7 @@ def vote_summary(vote_result: Mapping[str, Any]) -> None:
             })
         
         import pandas as pd
-        st.dataframe(pd.DataFrame(voting_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(voting_data), width="stretch", hide_index=True)
         
         # Show vote breakdown
         col1, col2 = st.columns(2)
@@ -277,7 +277,7 @@ def execution_log_viewer(log_entries: Sequence[Mapping[str, Any]]) -> None:
     with st.container():
         st.subheader("Execution Logs")
         if log_entries:
-            st.dataframe(list(log_entries), use_container_width=True)
+            st.dataframe(list(log_entries), width="stretch")
         else:
             st.info("No log entries available.")
 

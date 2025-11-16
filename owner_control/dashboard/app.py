@@ -245,7 +245,7 @@ def main() -> None:
         st.divider()
         
         # Refresh button
-        if st.button("🔄 Refresh Data", use_container_width=True):
+        if st.button("🔄 Refresh Data", width="stretch"):
             st.session_state["refresh_trigger"] += 1
             st.rerun()
         
@@ -314,7 +314,7 @@ def main() -> None:
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if st.button("✅ Approve & Sign", type="primary", use_container_width=True):
+                            if st.button("✅ Approve & Sign", type="primary", width="stretch"):
                                 try:
                                     authorization_payload = _build_authorization_payload(
                                         owner_id=settings.owner_id or "unknown_owner",
@@ -345,7 +345,7 @@ def main() -> None:
                                     st.error(f"Failed to approve: {exc}")
                         
                         with col2:
-                            if st.button("❌ Reject", use_container_width=True):
+                            if st.button("❌ Reject", width="stretch"):
                                 _log_dashboard_event(
                                     event_type="owner_proposal_rejected",
                                     data={
@@ -427,7 +427,7 @@ def main() -> None:
                             proposal=proposal,
                         )
                         
-                        if st.button("✅ Approve", key=f"approve_{proposal['id']}", use_container_width=True):
+                        if st.button("✅ Approve", key=f"approve_{proposal['id']}", width="stretch"):
                             try:
                                 signature = sign_action(
                                     owner_id=settings.owner_id or "unknown_owner",
@@ -450,7 +450,7 @@ def main() -> None:
                             except ConstitutionalError as exc:
                                 st.error(f"Failed: {exc}")
                         
-                        if st.button("❌ Reject", key=f"reject_{proposal['id']}", use_container_width=True):
+                        if st.button("❌ Reject", key=f"reject_{proposal['id']}", width="stretch"):
                             _log_dashboard_event(
                                 event_type="owner_proposal_rejected",
                                 data={

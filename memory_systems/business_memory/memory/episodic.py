@@ -35,6 +35,20 @@ from utilities.logger import log_event as base_log_event, get_recent_logs
 logger = logging.getLogger(__name__)
 
 
+def _coerce_temperature(model_name: str, requested: float) -> float:
+    """
+    Adjust temperature for models (like GPT-5) that only support fixed values.
+    """
+    normalized = (model_name or "").strip().lower()
+    if normalized.startswith("gpt-5") and requested != 1.0:
+        logger.info(
+            "Adjusting temperature to 1.0 for fixed-temperature model",
+            extra={"model_name": model_name, "requested_temperature": requested},
+        )
+        return 1.0
+    return requested
+
+
 def log_event(
     event_type: str,
     data: Dict,
@@ -200,13 +214,14 @@ def summarize_recent_activity(events: List[Dict]) -> str:
     
     try:
         # Call LLM via LiteLLM
+        effective_temperature = _coerce_temperature(model_name, 0.7)
         response = litellm.completion(
             model=model_name,
             messages=[
                 {"role": "system", "content": "You are a board activity summarizer. Provide clear, concise summaries."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
+            temperature=effective_temperature,
             max_tokens=1000
         )
         
