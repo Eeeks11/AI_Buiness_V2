@@ -6,7 +6,8 @@ on:
       - 'constitutional_layer_immutable/**'
       - 'memory_systems/codebase_memory/**'
       - 'tests_ci_cd/**'
-      - '*.py'
+      - '**/*.py'
+      - '.github/workflows/constitution-lock.yml'
   push:
     branches:
       - main
@@ -15,7 +16,8 @@ on:
       - 'constitutional_layer_immutable/**'
       - 'memory_systems/codebase_memory/**'
       - 'tests_ci_cd/**'
-      - '*.py'
+      - '**/*.py'
+      - '.github/workflows/constitution-lock.yml'
 
 jobs:
   protect-immutable-files:
