@@ -340,6 +340,61 @@ def get_settings() -> Settings:
     return _settings
 
 
+def resolve_litellm_model(provider_identifier: str) -> str:
+    """
+    Convert a canonical provider identifier (e.g., "openai/gpt-5") into the
+    LiteLLM model name expected by litellm.completion.
+
+    Args:
+        provider_identifier: Vendor/model identifier such as "openai/gpt-5".
+
+    Returns:
+        LiteLLM model string compatible with litellm.completion.
+
+    Raises:
+        ConstitutionalError: If the provider identifier cannot be resolved.
+    """
+    identifier = (provider_identifier or "").strip()
+    if "/" not in identifier:
+        raise ConstitutionalError(
+            f"Rule 8 Violation: Unknown LLM provider '{provider_identifier}'. "
+            "Expected format 'vendor/model_version'."
+        )
+
+    vendor, version = identifier.split("/", 1)
+    vendor = vendor.strip().lower()
+    version = version.strip()
+
+    if not vendor or not version:
+        raise ConstitutionalError(
+            f"Rule 8 Violation: Unknown LLM provider '{provider_identifier}'. "
+            "Expected format 'vendor/model_version'."
+        )
+
+    if vendor == "google":
+        if version.startswith("gemini/"):
+            return version
+        return f"gemini/{version}"
+
+    if vendor in {"openai", "anthropic"}:
+        return version
+
+    alias_map = {
+        "x-ai": "xai",
+        "xai": "xai",
+        "mistralai": "mistral",
+        "mistral": "mistral",
+    }
+
+    if vendor in alias_map:
+        return f"{alias_map[vendor]}/{version}"
+
+    raise ConstitutionalError(
+        f"Rule 8 Violation: Unknown LLM provider '{provider_identifier}'. "
+        "Unable to resolve LiteLLM model."
+    )
+
+
 # Auto-validate on import (but allow lazy loading in tests)
 try:
     settings = get_settings()
