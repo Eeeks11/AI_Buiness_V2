@@ -35,6 +35,7 @@ from langgraph_state_machine import (
     GovernanceState
 )
 from llm_router import call_llm, get_available_providers
+from config import get_settings
 
 
 @pytest.fixture
@@ -179,8 +180,6 @@ class TestLLMRouter:
         mock_completion.return_value = mock_response
         
         # Test all providers
-        from config_settings.config import get_settings
-
         settings = get_settings()
         providers = [
             settings.provider_model_identifier("openai"),
@@ -212,7 +211,8 @@ class TestLLMRouter:
         mock_completion.return_value = mock_response
         
         # Call LLM
-        call_llm(provider="openai/gpt-5", prompt="Test prompt")
+        provider = get_settings().provider_model_identifier("openai")
+        call_llm(provider=provider, prompt="Test prompt")
         
         # Verify logging
         assert mock_log.call_count >= 2  # At least attempt and success logs
@@ -237,7 +237,8 @@ class TestLLMRouter:
         mock_completion.side_effect = [Exception("Error"), mock_response]
         
         # Call LLM (should retry)
-        response = call_llm(provider="openai/gpt-5", prompt="Test prompt")
+        provider = get_settings().provider_model_identifier("openai")
+        response = call_llm(provider=provider, prompt="Test prompt")
         
         # Verify retry
         assert mock_completion.call_count == 2

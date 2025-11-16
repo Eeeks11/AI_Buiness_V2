@@ -20,6 +20,10 @@ import litellm
 project_root = Path(__file__).parent.parent.parent.parent
 from models.core import ConstitutionalValidation, APIResponse, ConstitutionalError
 
+# Local - configuration
+sys.path.insert(0, str(project_root / "config_settings"))
+from config import get_settings, resolve_litellm_model
+
 # Local - constitutional enforcement
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
 from constitution import validate_constitutional_compliance
@@ -162,13 +166,17 @@ def summarize_recent_activity(events: List[Dict]) -> str:
     if not events:
         logger.warning("No events provided for summarization")
         return "No recent activity to summarize."
+
+    settings = get_settings()
+    provider_identifier = settings.provider_model_identifier("openai")
+    model_name = resolve_litellm_model(provider_identifier)
     
     # Log LLM call attempt (Rule 6)
     try:
         base_log_event(
             event_type="llm_call_attempt",
             data={
-                "provider": "openai/gpt-4o-mini",
+                "provider": provider_identifier,
                 "purpose": "summarize_recent_activity",
                 "event_count": len(events)
             },
@@ -193,7 +201,7 @@ def summarize_recent_activity(events: List[Dict]) -> str:
     try:
         # Call LLM via LiteLLM
         response = litellm.completion(
-            model="gpt-4o-mini",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "You are a board activity summarizer. Provide clear, concise summaries."},
                 {"role": "user", "content": prompt}
@@ -209,7 +217,7 @@ def summarize_recent_activity(events: List[Dict]) -> str:
             base_log_event(
                 event_type="llm_call_success",
                 data={
-                    "provider": "openai/gpt-4o-mini",
+                    "provider": provider_identifier,
                     "purpose": "summarize_recent_activity",
                     "response_length": len(summary)
                 },
@@ -229,7 +237,7 @@ def summarize_recent_activity(events: List[Dict]) -> str:
             base_log_event(
                 event_type="llm_call_failure",
                 data={
-                    "provider": "openai/gpt-4o-mini",
+                    "provider": provider_identifier,
                     "purpose": "summarize_recent_activity",
                     "error": str(e)
                 },

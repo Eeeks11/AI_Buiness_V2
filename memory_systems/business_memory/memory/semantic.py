@@ -23,6 +23,10 @@ import litellm
 project_root = Path(__file__).parent.parent.parent.parent
 from models.core import ConstitutionalRule, ConstitutionalValidation, ConstitutionalError
 
+# Local - configuration
+sys.path.insert(0, str(project_root / "config_settings"))
+from config import get_settings, resolve_litellm_model
+
 # Local - constitutional enforcement
 sys.path.insert(0, str(project_root / "constitutional_layer_immutable"))
 from constitution import validate_constitutional_compliance
@@ -327,6 +331,10 @@ def get_trend_analysis(topic: str) -> str:
     if not decisions:
         logger.warning(f"No relevant decisions found for topic: {topic}")
         return f"No relevant decisions found for topic: {topic}"
+
+    settings = get_settings()
+    provider_identifier = settings.provider_model_identifier("anthropic")
+    model_name = resolve_litellm_model(provider_identifier)
     
     # Prepare decisions text for LLM
     decisions_text = json.dumps(decisions, indent=2, ensure_ascii=False)
@@ -337,7 +345,7 @@ def get_trend_analysis(topic: str) -> str:
         base_log_event(
             event_type="llm_call_attempt",
             data={
-                "provider": "anthropic/claude-3-5-sonnet-20241022",
+                "provider": provider_identifier,
                 "purpose": "trend_analysis",
                 "topic": topic,
                 "decision_count": len(decisions)
@@ -361,7 +369,7 @@ def get_trend_analysis(topic: str) -> str:
     try:
         # Call LLM via LiteLLM
         response = litellm.completion(
-            model="claude-3-5-sonnet-20241022",
+            model=model_name,
             messages=[
                 {
                     "role": "system",
@@ -381,7 +389,7 @@ def get_trend_analysis(topic: str) -> str:
             base_log_event(
                 event_type="llm_call_success",
                 data={
-                    "provider": "anthropic/claude-3-5-sonnet-20241022",
+                    "provider": provider_identifier,
                     "purpose": "trend_analysis",
                     "topic": topic,
                     "response_length": len(analysis)
@@ -403,7 +411,7 @@ def get_trend_analysis(topic: str) -> str:
             base_log_event(
                 event_type="llm_call_failure",
                 data={
-                    "provider": "anthropic/claude-3-5-sonnet-20241022",
+                    "provider": provider_identifier,
                     "purpose": "trend_analysis",
                     "topic": topic,
                     "error": str(e)
