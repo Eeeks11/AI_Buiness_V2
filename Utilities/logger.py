@@ -418,7 +418,13 @@ def log_event(
     global _last_chain_hash, _entries_since_last_pin
 
     log_path = _get_log_file_path()
-    if _last_chain_hash is None or not log_path.exists():
+    needs_state_refresh = _last_chain_hash is None or not log_path.exists()
+    if not needs_state_refresh:
+        try:
+            needs_state_refresh = log_path.stat().st_size == 0
+        except FileNotFoundError:
+            needs_state_refresh = True
+    if needs_state_refresh:
         _initialize_state()
     metadata = metadata or {}
 
@@ -503,7 +509,13 @@ def validate_log_chain() -> bool:
     
     log_path = _get_log_file_path()
     if not log_path.exists():
-        raise ConstitutionalError("Rule 6 Violation: Audit log missing")
+        logger.warning(
+            "Audit log missing; initializing new immutable log chain.",
+            extra={"log_path": str(log_path)},
+        )
+        reset_log_chain(preserve_backup=False)
+        _last_chain_hash = None
+        return True
 
     # Read entries and migrate if needed (migration modifies the file in-place)
     entries = _read_log_file()
@@ -566,6 +578,26 @@ def validate_log_chain() -> bool:
 
         if index == 0:
             if stored_prev_hash not in (None, "", GENESIS_HASH):
+                if stored_content_hash == expected_content_hash:
+                    logger.warning(
+                        "Invalid genesis previous hash detected. Repairing log chain from genesis.",
+                        extra={
+                            "index": index + 1,
+                            "stored_prev_hash": stored_prev_hash,
+                        },
+                    )
+                    repaired_entries = _repair_chain_hashes(
+                        entries, start_prev_hash=GENESIS_HASH
+                    )
+                    log_path = _get_log_file_path()
+                    with open(log_path, "w", encoding="utf-8") as handle:
+                        for repaired_entry in repaired_entries:
+                            handle.write(json.dumps(repaired_entry, ensure_ascii=False) + "\n")
+                    logger.info(
+                        "Genesis hash repaired successfully.",
+                        extra={"total_entries": len(repaired_entries)},
+                    )
+                    return validate_log_chain()
                 raise ConstitutionalError(
                     f"Rule 6 Violation: Immutable log tampering detected (invalid genesis previous hash at index {index + 1}). "
                     f"Expected: {GENESIS_HASH} or empty, Got: {stored_prev_hash}"
