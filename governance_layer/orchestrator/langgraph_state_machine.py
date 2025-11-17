@@ -44,6 +44,10 @@ from llm_router import call_llm
 from governance_layer.governance.board import get_role_provider_map
 from governance_layer.roles.prompt_templates import load_role_configs
 
+# Local - retrospective
+sys.path.insert(0, str(project_root / "governance_layer"))
+from retrospective import conduct_weekly_retrospective, should_run_retrospective
+
 # Local - configuration
 sys.path.insert(0, str(project_root / "config_settings"))
 from config import get_settings
@@ -67,6 +71,7 @@ class GovernancePhase:
     DELIBERATION = "DELIBERATION"
     VOTING = "VOTING"
     EXECUTION = "EXECUTION"
+    RETROSPECTIVE = "RETROSPECTIVE"
 
 
 class GovernanceState(TypedDict, total=False):
@@ -87,6 +92,7 @@ class GovernanceState(TypedDict, total=False):
     deliberation_result: Optional[Dict[str, Any]]
     voting_result: VotingResultData
     execution_result: Optional[Dict[str, Any]]
+    retrospective_result: Optional[Dict[str, Any]]
     validation_results: Dict[str, ConstitutionalValidation]
     errors: list[str]
 
@@ -520,6 +526,101 @@ def execute_decision(state: GovernanceState) -> GovernanceState:
         raise ConstitutionalError(f"Rule 6 Violation: Execution phase failed. Error: {e}")
 
 
+def conduct_retrospective(state: GovernanceState) -> GovernanceState:
+    """
+    Conduct retrospective phase of governance cycle.
+    
+    Performs post-decision analysis and continuous improvement review.
+    Validates constitutional compliance after retrospective.
+    
+    Args:
+        state: Current governance state
+        
+    Returns:
+        Updated state with retrospective_result
+        
+    Raises:
+        ConstitutionalError: If validation fails
+    """
+    logger.info(f"Entering RETROSPECTIVE phase for proposal {state['proposal'].get('id', 'unknown')}")
+    
+    try:
+        # Log state entry (Rule 6)
+        from utilities.logger import log_event as base_log_event
+        base_log_event(
+            event_type="governance_state_entry",
+            data={
+                "phase": GovernancePhase.RETROSPECTIVE,
+                "proposal_id": state["proposal"].get("id")
+            },
+            metadata={"function": "conduct_retrospective"}
+        )
+        
+        # Check if retrospective should run (weekly schedule)
+        # For individual proposal retrospectives, we'll run a focused retrospective
+        # Note: Full weekly retrospective requires owner approval, so we'll do a lightweight version here
+        # The full retrospective can be triggered separately via should_run_retrospective()
+        
+        # For now, we'll skip the full retrospective in the cycle (it requires owner approval)
+        # and just log that execution completed successfully
+        # In production, this could trigger an async retrospective or queue it for owner approval
+        
+        retrospective_result = {
+            "status": "logged",
+            "proposal_id": state["proposal"].get("id"),
+            "execution_status": state.get("execution_result", {}).get("status", "unknown"),
+            "timestamp": state.get("context", {}).get("timestamp", ""),
+            "note": "Full retrospective requires owner approval and runs on weekly schedule"
+        }
+        
+        state["retrospective_result"] = retrospective_result
+        
+        # Log retrospective completion (Rule 6)
+        base_log_event(
+            event_type="retrospective_phase_completed",
+            data={
+                "proposal_id": state["proposal"].get("id"),
+                "execution_status": retrospective_result["execution_status"]
+            },
+            metadata={"function": "conduct_retrospective"}
+        )
+        
+        # Constitutional validation gate
+        validation = validate_constitutional_compliance(
+            action={
+                "type": "retrospective",
+                "proposal_id": state["proposal"].get("id"),
+                "logged": True
+            },
+            context={"log_path": str(project_root / "audit_compliance" / "logs" / "events.jsonl")}
+        )
+        
+        state["validation_results"]["retrospective"] = validation
+        
+        if not validation.is_compliant:
+            logger.error(
+                f"Retrospective validation failed: {validation.violated_rules}",
+                extra={"proposal_id": state["proposal"].get("id")}
+            )
+            state["errors"].append(
+                f"Retrospective validation failed: {validation.violated_rules}"
+            )
+            raise ConstitutionalError(
+                f"Rule 6 Violation: Retrospective phase failed constitutional validation. "
+                f"Violations: {validation.violated_rules}"
+            )
+        
+        logger.info(f"Retrospective phase completed for proposal {state['proposal'].get('id')}")
+        return state
+        
+    except ConstitutionalError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in retrospective phase: {e}", exc_info=True)
+        state["errors"].append(f"Retrospective error: {str(e)}")
+        raise ConstitutionalError(f"Rule 6 Violation: Retrospective phase failed. Error: {e}")
+
+
 def run_governance_cycle(
     proposal: Dict,
     owner_signature: Optional[str] = None,
@@ -528,7 +629,7 @@ def run_governance_cycle(
     """
     Execute full governance cycle through state machine.
     
-    Progresses through: IDEATION → DELIBERATION → VOTING → EXECUTION
+    Progresses through: IDEATION → DELIBERATION → VOTING → EXECUTION → RETROSPECTIVE
     At each state: builds context, logs entry/exit, validates constitutional compliance.
     
     Args:
@@ -565,6 +666,7 @@ def run_governance_cycle(
         "deliberation_result": None,
         "voting_result": None,
         "execution_result": None,
+        "retrospective_result": None,
         "validation_results": {},
         "errors": []
     }
@@ -577,13 +679,15 @@ def run_governance_cycle(
     workflow.add_node(GovernancePhase.DELIBERATION, conduct_deliberation)
     workflow.add_node(GovernancePhase.VOTING, conduct_voting)
     workflow.add_node(GovernancePhase.EXECUTION, execute_decision)
+    workflow.add_node(GovernancePhase.RETROSPECTIVE, conduct_retrospective)
     
     # Add edges
     workflow.set_entry_point(GovernancePhase.IDEATION)
     workflow.add_edge(GovernancePhase.IDEATION, GovernancePhase.DELIBERATION)
     workflow.add_edge(GovernancePhase.DELIBERATION, GovernancePhase.VOTING)
     workflow.add_edge(GovernancePhase.VOTING, GovernancePhase.EXECUTION)
-    workflow.add_edge(GovernancePhase.EXECUTION, END)
+    workflow.add_edge(GovernancePhase.EXECUTION, GovernancePhase.RETROSPECTIVE)
+    workflow.add_edge(GovernancePhase.RETROSPECTIVE, END)
     
     # Compile and run
     app = workflow.compile()
@@ -602,7 +706,8 @@ def run_governance_cycle(
                     GovernancePhase.IDEATION,
                     GovernancePhase.DELIBERATION,
                     GovernancePhase.VOTING,
-                    GovernancePhase.EXECUTION
+                    GovernancePhase.EXECUTION,
+                    GovernancePhase.RETROSPECTIVE
                 ],
                 "errors": final_state.get("errors", [])
             },
