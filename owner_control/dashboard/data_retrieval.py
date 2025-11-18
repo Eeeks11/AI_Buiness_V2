@@ -57,6 +57,10 @@ def get_all_proposals(limit: int = 100) -> List[Dict[str, Any]]:
         "board_ideation_conducted",
         "board_deliberation_conducted",
         "board_vote_tallied",
+        "proposal_pending_approval",
+        "proposal_approved_by_owner",
+        "proposal_rejected_by_owner",
+        "proposal_executed",
     ]
     
     for log_entry in all_logs:
@@ -65,19 +69,34 @@ def get_all_proposals(limit: int = 100) -> List[Dict[str, Any]]:
             continue
             
         data = log_entry.get("data", {})
-        proposal_id = data.get("proposal_id")
+        proposal_id = data.get("proposal_id") or data.get("proposal", {}).get("id") if isinstance(data.get("proposal"), dict) else None
         
         if not proposal_id:
             continue
         
         # Initialize proposal if not seen before
         if proposal_id not in proposals_map:
+            # Try to get proposal data from the log entry data
+            proposal_data = data.get("proposal", {})
+            if isinstance(proposal_data, dict):
+                # Use proposal data directly if available
+                title = proposal_data.get("title") or data.get("title", "Unknown Proposal")
+                description = proposal_data.get("description") or data.get("description", "")
+                financial_impact = proposal_data.get("financial_impact") or data.get("financial_impact", 0.0)
+                legal_risk = proposal_data.get("legal_risk") or data.get("legal_risk", 0.0)
+            else:
+                # Fallback to data fields
+                title = data.get("title", "Unknown Proposal")
+                description = data.get("description", "")
+                financial_impact = data.get("financial_impact", 0.0)
+                legal_risk = data.get("legal_risk", 0.0)
+            
             proposals_map[proposal_id] = {
                 "id": proposal_id,
-                "title": data.get("title", "Unknown Proposal"),
-                "description": data.get("description", ""),
-                "financial_impact": data.get("financial_impact", 0.0),
-                "legal_risk": data.get("legal_risk", 0.0),
+                "title": title,
+                "description": description,
+                "financial_impact": financial_impact,
+                "legal_risk": legal_risk,
                 "status": ProposalStatus.DRAFT.value,
                 "created_at": log_entry.get("timestamp", ""),
                 "updated_at": log_entry.get("timestamp", ""),
@@ -107,8 +126,24 @@ def get_all_proposals(limit: int = 100) -> List[Dict[str, Any]]:
                 proposal["status"] = ProposalStatus.DELIBERATION.value
             elif phase == "VOTING":
                 proposal["status"] = ProposalStatus.VOTING.value
+            elif phase == "PENDING_APPROVAL":
+                proposal["status"] = ProposalStatus.PENDING_APPROVAL.value
             elif phase == "EXECUTION":
                 proposal["status"] = ProposalStatus.APPROVED.value
+        
+        # Check for pending approval events
+        if event_type == "proposal_pending_approval":
+            proposal["status"] = ProposalStatus.PENDING_APPROVAL.value
+            proposal["board_approved"] = data.get("board_approved", False)
+        
+        # Check for owner approval events
+        if event_type == "proposal_approved_by_owner":
+            proposal["status"] = ProposalStatus.APPROVED.value
+            proposal["owner_authorized"] = True
+        
+        if event_type == "proposal_rejected_by_owner":
+            proposal["status"] = ProposalStatus.REJECTED.value
+            proposal["owner_authorized"] = False
         
         # Update from proposal data if present
         if "proposal" in data:
@@ -281,9 +316,12 @@ def get_pending_owner_approvals() -> List[Dict[str, Any]]:
         status = proposal.get("status", "")
         vote_result = proposal.get("vote_result")
         
-        # Check if board approved but owner hasn't authorized
-        if (status == ProposalStatus.APPROVED.value or 
-            (vote_result and vote_result.get("decision") == "approved")):
+        # Check if status is pending_approval (new status)
+        if status == ProposalStatus.PENDING_APPROVAL.value:
+            pending.append(proposal)
+        # Also check legacy: board approved but owner hasn't authorized
+        elif (status == ProposalStatus.APPROVED.value or 
+              (vote_result and vote_result.get("decision") == "approved")):
             if not proposal.get("owner_authorized", False):
                 pending.append(proposal)
     

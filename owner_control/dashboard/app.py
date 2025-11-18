@@ -112,10 +112,18 @@ def _create_proposal_form() -> Optional[dict]:
                     "updated_at": datetime.now().isoformat(),
                 }
                 
-                # Log proposal creation
+                # Log proposal creation with all fields
                 _log_dashboard_event(
                     event_type="proposal_created",
-                    data=proposal
+                    data={
+                        "proposal_id": proposal["id"],
+                        "proposal": proposal,  # Include full proposal in nested structure
+                        "title": proposal["title"],
+                        "description": proposal["description"],
+                        "financial_impact": proposal["financial_impact"],
+                        "legal_risk": proposal["legal_risk"],
+                        "status": proposal["status"]
+                    }
                 )
                 
                 return proposal
@@ -405,52 +413,79 @@ def main() -> None:
             st.info(f"Found {len(pending)} proposal(s) awaiting owner approval.")
             
             for proposal in pending:
-                with st.container():
-                    st.subheader(f"{proposal.get('title', 'Untitled')} ({proposal.get('id')})")
-                    
-                    col1, col2 = st.columns([2, 1])
-                    
-                    with col1:
-                        st.write(f"**Description:** {proposal.get('description', 'N/A')}")
-                        st.write(f"**Financial Impact:** ${proposal.get('financial_impact', 0):,.2f}")
-                        st.write(f"**Legal Risk:** {proposal.get('legal_risk', 0):.2f}")
-                        
-                        if proposal.get("vote_result"):
-                            vote_result = proposal["vote_result"]
-                            st.write(f"**Board Decision:** {vote_result.get('decision', 'unknown')}")
-                            if vote_result.get("veto_triggered"):
-                                st.warning(f"⚠️ Veto by {vote_result.get('veto_role')}")
-                    
-                    with col2:
-                        authorization_payload = _build_authorization_payload(
-                            owner_id=settings.owner_id or "unknown_owner",
-                            proposal=proposal,
-                        )
-                        
-                        if st.button("✅ Approve", key=f"approve_{proposal['id']}", width="stretch"):
-                            try:
-                                signature = sign_action(
-                                    owner_id=settings.owner_id or "unknown_owner",
-                                    payload=authorization_payload,
-                                )
-                                
-                                _log_dashboard_event(
-                                    event_type="owner_proposal_approved",
-                                    data={
-                                        "proposal_id": proposal["id"],
-                                        "signature": signature,
-                                        "owner_id": settings.owner_id
-                                    }
-                                )
-                                
-                                st.success("✅ Approved!")
-                                st.code(signature, language="text")
-                                st.rerun()
-                                
-                            except ConstitutionalError as exc:
-                                st.error(f"Failed: {exc}")
-                        
-                        if st.button("❌ Reject", key=f"reject_{proposal['id']}", width="stretch"):
+                st.divider()
+                
+                # Display proposal card
+                proposal_card(proposal)
+                
+                # Show vote result if available
+                if proposal.get("vote_result"):
+                    vote_summary(proposal["vote_result"])
+                
+                # Approval buttons
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button(f"✅ Approve", key=f"approve_{proposal['id']}", type="primary"):
+                        try:
+                            from governance_layer.orchestrator.langgraph_state_machine import resume_from_approval
+                            
+                            authorization_payload = _build_authorization_payload(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                proposal=proposal,
+                            )
+                            signature = sign_action(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                payload=authorization_payload,
+                            )
+                            
+                            # Resume governance cycle with approval
+                            result = resume_from_approval(
+                                proposal_id=proposal["id"],
+                                owner_signature=signature,
+                                owner_id=settings.owner_id or "unknown_owner",
+                                approved=True
+                            )
+                            
+                            _log_dashboard_event(
+                                event_type="owner_proposal_approved",
+                                data={
+                                    "proposal_id": proposal["id"],
+                                    "signature": signature,
+                                    "owner_id": settings.owner_id
+                                }
+                            )
+                            
+                            st.success("✅ Proposal approved! Execution proceeding...")
+                            st.session_state["refresh_trigger"] += 1
+                            st.rerun()
+                            
+                        except Exception as exc:
+                            st.error(f"Failed to approve: {exc}")
+                            logger.exception("Approval failed")
+                
+                with col2:
+                    if st.button(f"❌ Reject", key=f"reject_{proposal['id']}"):
+                        try:
+                            from governance_layer.orchestrator.langgraph_state_machine import resume_from_approval
+                            
+                            authorization_payload = _build_authorization_payload(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                proposal=proposal,
+                            )
+                            signature = sign_action(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                payload=authorization_payload,
+                            )
+                            
+                            # Resume governance cycle with rejection
+                            result = resume_from_approval(
+                                proposal_id=proposal["id"],
+                                owner_signature=signature,
+                                owner_id=settings.owner_id or "unknown_owner",
+                                approved=False
+                            )
+                            
                             _log_dashboard_event(
                                 event_type="owner_proposal_rejected",
                                 data={
@@ -458,10 +493,14 @@ def main() -> None:
                                     "owner_id": settings.owner_id
                                 }
                             )
-                            st.warning("Rejected.")
+                            
+                            st.warning("❌ Proposal rejected by owner.")
+                            st.session_state["refresh_trigger"] += 1
                             st.rerun()
-                    
-                    st.divider()
+                            
+                        except Exception as exc:
+                            st.error(f"Failed to reject: {exc}")
+                            logger.exception("Rejection failed")
 
     with tab4:
         st.header("Audit Trail")
