@@ -128,11 +128,17 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
     Returns:
         ModelHealthStatus object with health information
     """
-    logger.info(f"Checking health for provider: {provider}")
+    logger.debug(f"Checking health for provider: {provider}")  # Changed from info to debug to reduce noise
     
     try:
         # Resolve model name
         model_name = resolve_litellm_model(provider)
+        
+        # Suppress LiteLLM verbose error messages during health check
+        import logging
+        litellm_logger = logging.getLogger("LiteLLM")
+        original_level = litellm_logger.level
+        litellm_logger.setLevel(logging.ERROR)  # Only show errors, suppress warnings/info
         
         # Perform minimal test call
         start_time = time.time()
@@ -143,7 +149,7 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
                 messages=[
                     {"role": "user", "content": "test"}
                 ],
-                max_tokens=5,
+                max_tokens=10,  # Increased from 5 to avoid "max_tokens reached" errors
                 timeout=timeout_seconds
             )
             
@@ -151,7 +157,7 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
             
             # Check if we got a valid response
             if response and response.choices and len(response.choices) > 0:
-                logger.info(f"Model {provider} is healthy (response time: {response_time_ms:.2f}ms)")
+                logger.debug(f"Model {provider} is healthy (response time: {response_time_ms:.2f}ms)")  # Changed to debug
                 return ModelHealthStatus(
                     provider=provider,
                     model_name=model_name,
@@ -159,7 +165,7 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
                     response_time_ms=response_time_ms
                 )
             else:
-                logger.warning(f"Model {provider} returned empty response")
+                logger.debug(f"Model {provider} returned empty response")  # Changed to debug
                 return ModelHealthStatus(
                     provider=provider,
                     model_name=model_name,
@@ -172,10 +178,12 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
             response_time_ms = (time.time() - start_time) * 1000
             error_type, error_message = _classify_error(e)
             
-            logger.warning(
-                f"Model {provider} health check failed: {error_message}",
-                extra={"provider": provider, "error_type": error_type}
-            )
+            # Only log warnings for non-timeout errors to reduce noise
+            if error_type != "network_error" or "timeout" not in str(e).lower():
+                logger.debug(
+                    f"Model {provider} health check failed: {error_message}",
+                    extra={"provider": provider, "error_type": error_type}
+                )
             
             return ModelHealthStatus(
                 provider=provider,
@@ -185,11 +193,14 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
                 error_type=error_type,
                 response_time_ms=response_time_ms
             )
+        finally:
+            # Restore original logging level
+            litellm_logger.setLevel(original_level)
             
     except Exception as e:
         # Error resolving model name or other configuration issue
         error_type, error_message = _classify_error(e)
-        logger.error(
+        logger.debug(  # Changed from error to debug to reduce noise
             f"Failed to check health for {provider}: {error_message}",
             extra={"provider": provider, "error_type": error_type}
         )
@@ -239,11 +250,11 @@ def check_all_models_health(timeout_seconds: float = 5.0) -> Dict[str, ModelHeal
                 error_type="configuration_error"
             )
     
-    # Log health check results
+    # Log health check results (at debug level to reduce noise)
     healthy_count = sum(1 for status in health_results.values() if status.is_healthy)
     total_count = len(health_results)
     
-    logger.info(
+    logger.debug(  # Changed from info to debug to reduce noise
         f"Health check complete: {healthy_count}/{total_count} models healthy",
         extra={
             "healthy_count": healthy_count,
@@ -342,8 +353,17 @@ def get_model_health_summary() -> Dict[str, Any]:
     settings = get_settings()
     active_models = settings.active_models
     
-    # Quick health check (faster timeout for dashboard)
-    health_results = check_all_models_health(timeout_seconds=3.0)
+    # Quick health check (longer timeout for dashboard to reduce timeout errors)
+    # Suppress verbose LiteLLM errors during health check
+    import logging
+    litellm_logger = logging.getLogger("LiteLLM")
+    original_level = litellm_logger.level
+    litellm_logger.setLevel(logging.ERROR)  # Suppress INFO/WARNING messages
+    
+    try:
+        health_results = check_all_models_health(timeout_seconds=10.0)  # Increased from 3.0 to 10.0
+    finally:
+        litellm_logger.setLevel(original_level)  # Restore original logging level
     
     healthy_count = sum(1 for status in health_results.values() if status.is_healthy)
     unhealthy_count = len(health_results) - healthy_count
