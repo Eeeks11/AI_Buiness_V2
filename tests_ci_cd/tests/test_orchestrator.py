@@ -74,14 +74,29 @@ class TestStateMachine:
     @patch("langgraph_state_machine.build_agent_context")
     @patch("langgraph_state_machine.call_llm")
     @patch("langgraph_state_machine.validate_constitutional_compliance")
+    @patch("langgraph_state_machine.validate_models_before_governance")
     def test_state_machine_transitions(
         self,
+        mock_health_check,
         mock_validate,
         mock_llm,
         mock_context,
         mock_state
     ):
         """Test that state machine transitions through all phases."""
+        # Mock health check to always pass
+        from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+        mock_statuses = {}
+        for i in range(5):
+            provider = f"test_provider_{i}"
+            mock_statuses[provider] = ModelHealthStatus(
+                provider=provider,
+                model_name=f"test_model_{i}",
+                is_healthy=True,
+                response_time_ms=100.0
+            )
+        mock_health_check.return_value = (True, mock_statuses, [])
+        
         # Mock dependencies
         mock_context.return_value = {
             "constitutional_rules": {},
@@ -100,8 +115,22 @@ class TestStateMachine:
         assert state["phase"] == GovernancePhase.IDEATION
     
     @patch("langgraph_state_machine.validate_constitutional_compliance")
-    def test_constitutional_gates(self, mock_validate, mock_state):
+    @patch("langgraph_state_machine.validate_models_before_governance")
+    def test_constitutional_gates(self, mock_health_check, mock_validate, mock_state):
         """Test that constitutional gates validate correctly."""
+        # Mock health check to always pass
+        from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+        mock_statuses = {}
+        for i in range(5):
+            provider = f"test_provider_{i}"
+            mock_statuses[provider] = ModelHealthStatus(
+                provider=provider,
+                model_name=f"test_model_{i}",
+                is_healthy=True,
+                response_time_ms=100.0
+            )
+        mock_health_check.return_value = (True, mock_statuses, [])
+        
         # Mock validation failure
         mock_validation = MagicMock()
         mock_validation.is_compliant = False
@@ -115,8 +144,22 @@ class TestStateMachine:
                     conduct_ideation(mock_state.copy())
     
     @patch("langgraph_state_machine.build_agent_context")
-    def test_gate_blocks_invalid(self, mock_context, mock_state):
+    @patch("langgraph_state_machine.validate_models_before_governance")
+    def test_gate_blocks_invalid(self, mock_health_check, mock_context, mock_state):
         """Test that invalid input is blocked at gate."""
+        # Mock health check to always pass
+        from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+        mock_statuses = {}
+        for i in range(5):
+            provider = f"test_provider_{i}"
+            mock_statuses[provider] = ModelHealthStatus(
+                provider=provider,
+                model_name=f"test_model_{i}",
+                is_healthy=True,
+                response_time_ms=100.0
+            )
+        mock_health_check.return_value = (True, mock_statuses, [])
+        
         mock_context.return_value = {
             "constitutional_rules": {},
             "role": "CHAIR",
@@ -137,8 +180,22 @@ class TestStateMachine:
                     conduct_ideation(mock_state.copy())
     
     @patch("langgraph_state_machine.build_agent_context")
-    def test_memory_context_injection(self, mock_context, mock_state):
+    @patch("langgraph_state_machine.validate_models_before_governance")
+    def test_memory_context_injection(self, mock_health_check, mock_context, mock_state):
         """Test that each state receives memory context."""
+        # Mock health check to always pass
+        from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+        mock_statuses = {}
+        for i in range(5):
+            provider = f"test_provider_{i}"
+            mock_statuses[provider] = ModelHealthStatus(
+                provider=provider,
+                model_name=f"test_model_{i}",
+                is_healthy=True,
+                response_time_ms=100.0
+            )
+        mock_health_check.return_value = (True, mock_statuses, [])
+        
         mock_context.return_value = {
             "constitutional_rules": {"rule_1": "Test"},
             "role": "CEO",
