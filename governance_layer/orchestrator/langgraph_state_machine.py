@@ -48,6 +48,9 @@ from governance_layer.governance.board import get_role_provider_map
 from governance_layer.governance.voting import tally_votes
 from governance_layer.roles.prompt_templates import load_role_configs
 
+# Local - model health check
+from governance_layer.orchestrator.model_health_check import validate_models_before_governance
+
 # Local - retrospective
 sys.path.insert(0, str(project_root / "governance_layer"))
 from retrospective import conduct_weekly_retrospective, should_run_retrospective
@@ -133,6 +136,30 @@ def conduct_ideation(state: GovernanceState) -> GovernanceState:
     logger.info(f"Entering IDEATION phase for proposal {state['proposal'].get('id', 'unknown')}")
     
     try:
+        # Validate models are healthy before proceeding (Rule 8)
+        is_valid, health_results, error_messages = validate_models_before_governance(
+            required_healthy_count=5,
+            timeout_seconds=5.0
+        )
+        
+        if not is_valid:
+            logger.error(
+                "Model health check failed before ideation",
+                extra={"errors": error_messages, "health_results": {k: v.to_dict() for k, v in health_results.items()}}
+            )
+            state["errors"].extend(error_messages)
+            raise ConstitutionalError(
+                f"Rule 8 Violation: Insufficient healthy LLM models for governance cycle. "
+                f"Errors: {'; '.join(error_messages)}"
+            )
+        
+        # Store health check results in state for dashboard display
+        state["model_health_check"] = {
+            "checked_at": datetime.now().isoformat(),
+            "is_valid": is_valid,
+            "results": {k: v.to_dict() for k, v in health_results.items()}
+        }
+        
         # Build context for ideation
         role = state.get("role", "CHAIR")
         context = build_agent_context(
