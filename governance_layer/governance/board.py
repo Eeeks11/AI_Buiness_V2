@@ -168,15 +168,304 @@ def get_role_provider_map(refresh: bool = False) -> Dict[str, str]:
 ROLE_PROVIDER_MAP: Dict[str, str] = get_role_provider_map(refresh=True)
 
 
+def _synthesize_ideation_results(
+    role_responses: Dict[str, str],
+    role_contexts: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Synthesize ideation results by aggregating and categorizing ideas into themes.
+    
+    Implements Section 5.3 Step 3: Synthesis.
+    
+    Args:
+        role_responses: Dictionary mapping role names to their ideation responses.
+        role_contexts: Dictionary mapping role names to their context data.
+    
+    Returns:
+        Dictionary containing synthesized themes, clusters, and evidence summaries.
+    """
+    logger.info("Synthesizing ideation results", extra={"role_count": len(role_responses)})
+    
+    # Aggregate all ideas from role responses
+    all_ideas: List[str] = []
+    for role, response in role_responses.items():
+        # Extract ideas from response (simple extraction - could be enhanced with LLM)
+        ideas = response.split("\n")
+        all_ideas.extend([idea.strip() for idea in ideas if idea.strip()])
+    
+    # Categorize into themes (simplified - could use LLM for better categorization)
+    themes: Dict[str, List[str]] = {
+        "financial": [],
+        "operational": [],
+        "strategic": [],
+        "market": [],
+        "technical": [],
+        "other": []
+    }
+    
+    financial_keywords = ["profit", "revenue", "cost", "financial", "roi", "investment", "budget"]
+    operational_keywords = ["process", "efficiency", "operation", "workflow", "delivery"]
+    strategic_keywords = ["strategy", "vision", "long-term", "growth", "expansion"]
+    market_keywords = ["market", "customer", "demand", "competition", "brand"]
+    technical_keywords = ["system", "infrastructure", "technology", "platform", "api"]
+    
+    for idea in all_ideas:
+        idea_lower = idea.lower()
+        categorized = False
+        for keyword in financial_keywords:
+            if keyword in idea_lower:
+                themes["financial"].append(idea)
+                categorized = True
+                break
+        if categorized:
+            continue
+        for keyword in operational_keywords:
+            if keyword in idea_lower:
+                themes["operational"].append(idea)
+                categorized = True
+                break
+        if categorized:
+            continue
+        for keyword in strategic_keywords:
+            if keyword in idea_lower:
+                themes["strategic"].append(idea)
+                categorized = True
+                break
+        if categorized:
+            continue
+        for keyword in market_keywords:
+            if keyword in idea_lower:
+                themes["market"].append(idea)
+                categorized = True
+                break
+        if categorized:
+            continue
+        for keyword in technical_keywords:
+            if keyword in idea_lower:
+                themes["technical"].append(idea)
+                categorized = True
+                break
+        if not categorized:
+            themes["other"].append(idea)
+    
+    # Summarize supporting evidence
+    evidence_summary = {
+        "total_ideas": len(all_ideas),
+        "ideas_by_theme": {theme: len(ideas) for theme, ideas in themes.items()},
+        "roles_contributing": list(role_responses.keys())
+    }
+    
+    return {
+        "themes": themes,
+        "evidence_summary": evidence_summary,
+        "all_ideas": all_ideas
+    }
+
+
+def _shortlist_ideas(
+    synthesized_results: Dict[str, Any],
+    proposal: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """
+    Short-list ideas by ranking them by profitability potential, strategic fit, and resource alignment.
+    
+    Implements Section 5.3 Step 4: Short-Listing.
+    
+    Args:
+        synthesized_results: Output from _synthesize_ideation_results().
+        proposal: Original proposal dictionary.
+    
+    Returns:
+        List of ranked ideas with scores and rankings.
+    """
+    logger.info("Short-listing ideas", extra={"total_ideas": len(synthesized_results.get("all_ideas", []))})
+    
+    ideas = synthesized_results.get("all_ideas", [])
+    themes = synthesized_results.get("themes", {})
+    
+    # Score each idea (simplified scoring - could be enhanced with LLM)
+    scored_ideas: List[Dict[str, Any]] = []
+    
+    for idea in ideas:
+        score = 0.0
+        
+        # Profitability potential (0-1.0)
+        profitability_score = 0.5  # Default
+        if any(kw in idea.lower() for kw in ["profit", "revenue", "roi", "income", "revenue"]):
+            profitability_score = 0.8
+        if any(kw in idea.lower() for kw in ["cost reduction", "efficiency", "optimize"]):
+            profitability_score = 0.7
+        
+        # Strategic fit (0-1.0)
+        strategic_fit = 0.5  # Default
+        if idea in themes.get("strategic", []):
+            strategic_fit = 0.8
+        if any(kw in idea.lower() for kw in ["align", "fit", "support", "enable"]):
+            strategic_fit = 0.7
+        
+        # Resource alignment (0-1.0) - simplified
+        resource_alignment = 0.5  # Default
+        
+        # Combined score (weighted)
+        combined_score = (
+            profitability_score * 0.5 +
+            strategic_fit * 0.3 +
+            resource_alignment * 0.2
+        )
+        
+        scored_ideas.append({
+            "idea": idea,
+            "profitability_score": profitability_score,
+            "strategic_fit": strategic_fit,
+            "resource_alignment": resource_alignment,
+            "combined_score": combined_score
+        })
+    
+    # Sort by combined score (descending)
+    scored_ideas.sort(key=lambda x: x["combined_score"], reverse=True)
+    
+    # Add ranking
+    for idx, idea in enumerate(scored_ideas, 1):
+        idea["rank"] = idx
+    
+    return scored_ideas
+
+
+def _assign_ideas_to_roles(
+    shortlisted_ideas: List[Dict[str, Any]],
+    role_configs: Dict[str, Dict[str, Any]]
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Assign selected ideas to individual roles or working groups for deeper analysis.
+    
+    Implements Section 5.3 Step 5: Assignment.
+    
+    Args:
+        shortlisted_ideas: Output from _shortlist_ideas().
+        role_configs: Role configuration dictionary.
+    
+    Returns:
+        Dictionary mapping role names to assigned ideas.
+    """
+    logger.info("Assigning ideas to roles", extra={"ideas_count": len(shortlisted_ideas)})
+    
+    # Take top 5 ideas for assignment
+    top_ideas = shortlisted_ideas[:5]
+    
+    # Map ideas to roles based on themes and role responsibilities
+    assignments: Dict[str, List[Dict[str, Any]]] = {role: [] for role in role_configs.keys()}
+    
+    for idea_data in top_ideas:
+        idea = idea_data["idea"].lower()
+        
+        # Assign to CEO for strategic ideas
+        if any(kw in idea for kw in ["strategy", "vision", "growth", "expansion"]):
+            assignments["CEO"].append(idea_data)
+        # Assign to CFO for financial ideas
+        elif any(kw in idea for kw in ["profit", "revenue", "cost", "financial", "roi"]):
+            assignments["CFO"].append(idea_data)
+        # Assign to COO for operational ideas
+        elif any(kw in idea for kw in ["process", "efficiency", "operation", "workflow"]):
+            assignments["COO"].append(idea_data)
+        # Assign to CMO for market ideas
+        elif any(kw in idea for kw in ["market", "customer", "demand", "brand"]):
+            assignments["CMO"].append(idea_data)
+        # Assign to CISO for security/technical ideas
+        elif any(kw in idea for kw in ["security", "data", "infrastructure", "system"]):
+            assignments["CISO"].append(idea_data)
+        # Default to CHAIR for coordination
+        else:
+            assignments["CHAIR"].append(idea_data)
+    
+    return assignments
+
+
+def _generate_ideation_summary(
+    proposal: Dict[str, Any],
+    synthesized_results: Dict[str, Any],
+    shortlisted_ideas: List[Dict[str, Any]],
+    assignments: Dict[str, List[Dict[str, Any]]]
+) -> Dict[str, Any]:
+    """
+    Generate Strategic Ideation Summary as specified in Section 5.6.
+    
+    Args:
+        proposal: Original proposal dictionary.
+        synthesized_results: Output from _synthesize_ideation_results().
+        shortlisted_ideas: Output from _shortlist_ideas().
+        assignments: Output from _assign_ideas_to_roles().
+    
+    Returns:
+        Complete Strategic Ideation Summary dictionary.
+    """
+    logger.info("Generating Strategic Ideation Summary")
+    
+    # Extract top ideas
+    top_ideas = shortlisted_ideas[:5]
+    
+    # Calculate profitability indicators
+    avg_profitability = sum(idea["profitability_score"] for idea in top_ideas) / len(top_ideas) if top_ideas else 0.0
+    avg_strategic_fit = sum(idea["strategic_fit"] for idea in top_ideas) / len(top_ideas) if top_ideas else 0.0
+    
+    # Identify risks and dependencies (simplified)
+    risks = []
+    dependencies = []
+    required_resources = []
+    
+    for idea_data in top_ideas:
+        idea = idea_data["idea"].lower()
+        if any(kw in idea for kw in ["risk", "uncertainty", "challenge"]):
+            risks.append(idea_data["idea"])
+        if any(kw in idea for kw in ["depend", "require", "need"]):
+            dependencies.append(idea_data["idea"])
+        if any(kw in idea for kw in ["resource", "budget", "team", "infrastructure"]):
+            required_resources.append(idea_data["idea"])
+    
+    # Generate nominations for follow-up proposals
+    nominations = [
+        {
+            "idea": idea_data["idea"],
+            "rank": idea_data["rank"],
+            "profitability_score": idea_data["profitability_score"],
+            "assigned_to": [
+                role for role, ideas in assignments.items()
+                if any(a["idea"] == idea_data["idea"] for a in ideas)
+            ]
+        }
+        for idea_data in top_ideas
+    ]
+    
+    summary = {
+        "proposal_id": proposal.get("id"),
+        "thematic_clusters": synthesized_results.get("themes", {}),
+        "profitability_indicators": {
+            "average_profitability_score": avg_profitability,
+            "average_strategic_fit": avg_strategic_fit,
+            "high_potential_ideas": len([i for i in top_ideas if i["profitability_score"] > 0.7])
+        },
+        "risks": risks[:5],  # Top 5 risks
+        "dependencies": dependencies[:5],  # Top 5 dependencies
+        "required_resources": required_resources[:5],  # Top 5 resources
+        "nominations_for_follow_up": nominations,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    return summary
+
+
 def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
     """
     Conduct ideation by generating prompts for each board role.
+    
+    Implements Section 5: Strategic Ideation Framework.
+    Includes: Exploration, Synthesis, Short-Listing, Assignment, and Summary generation.
     
     Args:
         proposal: Proposal under consideration.
     
     Returns:
-        Dictionary containing role prompts, contexts, and metadata.
+        Dictionary containing role prompts, contexts, synthesized results, short-listed ideas,
+        assignments, and Strategic Ideation Summary.
     
     Raises:
         ConstitutionalError: If context generation or validation fails.
@@ -190,6 +479,7 @@ def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
 
         proposal_payload = proposal.model_dump()
 
+        # Step 1: Exploration - Generate prompts for each role
         for role in role_configs.keys():
             context = build_agent_context(
                 role=role,
@@ -200,6 +490,31 @@ def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
             role_contexts[role] = context
             role_prompts[role] = prompt
 
+        # Step 2: Get ideation responses from each role (simulated - in full implementation would call LLMs)
+        # For now, we'll use the prompts as placeholders for responses
+        role_responses: Dict[str, str] = {}
+        for role, prompt in role_prompts.items():
+            # In full implementation, this would call LLM for each role
+            # For now, use prompt as placeholder response
+            role_responses[role] = f"Ideation response from {role} based on: {prompt[:200]}..."
+
+        # Step 3: Synthesis
+        synthesized_results = _synthesize_ideation_results(role_responses, role_contexts)
+
+        # Step 4: Short-Listing
+        shortlisted_ideas = _shortlist_ideas(synthesized_results, proposal_payload)
+
+        # Step 5: Assignment
+        assignments = _assign_ideas_to_roles(shortlisted_ideas, role_configs)
+
+        # Step 6: Generate Strategic Ideation Summary
+        ideation_summary = _generate_ideation_summary(
+            proposal_payload,
+            synthesized_results,
+            shortlisted_ideas,
+            assignments
+        )
+
         timestamp = datetime.now().isoformat()
 
         try:
@@ -208,6 +523,8 @@ def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
                 data={
                     "proposal_id": proposal.id,
                     "role_count": len(role_prompts),
+                    "ideas_generated": len(synthesized_results.get("all_ideas", [])),
+                    "ideas_shortlisted": len(shortlisted_ideas),
                     "timestamp": timestamp
                 },
                 metadata={"function": "conduct_ideation"}
@@ -238,6 +555,11 @@ def conduct_ideation(proposal: Proposal) -> Dict[str, Any]:
             "proposal": proposal_payload,
             "role_prompts": role_prompts,
             "role_contexts": role_contexts,
+            "role_responses": role_responses,
+            "synthesized_results": synthesized_results,
+            "shortlisted_ideas": shortlisted_ideas,
+            "assignments": assignments,
+            "ideation_summary": ideation_summary,
             "timestamp": timestamp
         }
     except ConstitutionalError:

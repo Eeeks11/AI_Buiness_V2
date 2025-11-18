@@ -36,6 +36,7 @@ from owner_control.dashboard.data_retrieval import (
     get_pending_owner_approvals,
     get_governance_events_for_proposal,
 )
+from governance_layer.orchestrator.model_health_check import get_model_health_summary
 from owner_control.owner_gate.signature import sign_action
 from utilities.logger import get_recent_logs, log_event
 
@@ -112,10 +113,18 @@ def _create_proposal_form() -> Optional[dict]:
                     "updated_at": datetime.now().isoformat(),
                 }
                 
-                # Log proposal creation
+                # Log proposal creation with all fields
                 _log_dashboard_event(
                     event_type="proposal_created",
-                    data=proposal
+                    data={
+                        "proposal_id": proposal["id"],
+                        "proposal": proposal,  # Include full proposal in nested structure
+                        "title": proposal["title"],
+                        "description": proposal["description"],
+                        "financial_impact": proposal["financial_impact"],
+                        "legal_risk": proposal["legal_risk"],
+                        "status": proposal["status"]
+                    }
                 )
                 
                 return proposal
@@ -244,6 +253,25 @@ def main() -> None:
         
         st.divider()
         
+        # Quick model health status
+        st.subheader("Model Health")
+        try:
+            health_summary = get_model_health_summary()
+            healthy_count = health_summary["healthy_count"]
+            total_count = health_summary["total_models"]
+            can_run = health_summary["can_run_governance"]
+            
+            if can_run:
+                st.success(f"✅ {healthy_count}/{total_count} Healthy")
+            else:
+                st.error(f"❌ {healthy_count}/{total_count} Healthy")
+                st.caption("⚠️ Governance may fail")
+        except Exception as e:
+            st.warning("⚠️ Health check unavailable")
+            logger.debug(f"Sidebar health check failed: {e}")
+        
+        st.divider()
+        
         # Refresh button
         if st.button("🔄 Refresh Data", width="stretch"):
             st.session_state["refresh_trigger"] += 1
@@ -254,7 +282,7 @@ def main() -> None:
         role_structure_display()
 
     # Main content tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Proposals", "➕ Create Proposal", "⏳ Pending Approvals", "📊 Audit Trail"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Proposals", "➕ Create Proposal", "⏳ Pending Approvals", "🤖 Model Health", "📊 Audit Trail"])
 
     with tab1:
         st.header("All Proposals")
@@ -382,9 +410,36 @@ def main() -> None:
     with tab2:
         st.header("Create New Proposal")
         
+        # Check model health before allowing proposal creation
+        try:
+            health_summary = get_model_health_summary()
+            if not health_summary["can_run_governance"]:
+                st.error(
+                    f"⚠️ **Cannot create proposals**: Only {health_summary['healthy_count']}/5 required models are healthy. "
+                    f"Please check the '🤖 Model Health' tab and fix unhealthy models before creating proposals."
+                )
+                st.info("Go to the '🤖 Model Health' tab to see detailed error messages for each model.")
+            else:
+                st.success(f"✅ All systems ready: {health_summary['healthy_count']} models healthy")
+        except Exception as e:
+            st.warning(f"Could not check model health: {e}. Proceeding with caution...")
+            logger.exception("Model health check failed before proposal creation")
+        
         new_proposal = _create_proposal_form()
         
         if new_proposal:
+            # Double-check health before running cycle
+            try:
+                health_summary = get_model_health_summary()
+                if not health_summary["can_run_governance"]:
+                    st.error(
+                        f"❌ Cannot run governance cycle: Only {health_summary['healthy_count']}/5 models healthy. "
+                        f"Proposal created but cycle will fail. Please fix models first."
+                    )
+                    return
+            except Exception as e:
+                logger.warning(f"Health check failed before cycle: {e}")
+            
             st.success("Proposal created! Starting governance cycle...")
             
             # Run governance cycle
@@ -405,52 +460,79 @@ def main() -> None:
             st.info(f"Found {len(pending)} proposal(s) awaiting owner approval.")
             
             for proposal in pending:
-                with st.container():
-                    st.subheader(f"{proposal.get('title', 'Untitled')} ({proposal.get('id')})")
-                    
-                    col1, col2 = st.columns([2, 1])
-                    
-                    with col1:
-                        st.write(f"**Description:** {proposal.get('description', 'N/A')}")
-                        st.write(f"**Financial Impact:** ${proposal.get('financial_impact', 0):,.2f}")
-                        st.write(f"**Legal Risk:** {proposal.get('legal_risk', 0):.2f}")
-                        
-                        if proposal.get("vote_result"):
-                            vote_result = proposal["vote_result"]
-                            st.write(f"**Board Decision:** {vote_result.get('decision', 'unknown')}")
-                            if vote_result.get("veto_triggered"):
-                                st.warning(f"⚠️ Veto by {vote_result.get('veto_role')}")
-                    
-                    with col2:
-                        authorization_payload = _build_authorization_payload(
-                            owner_id=settings.owner_id or "unknown_owner",
-                            proposal=proposal,
-                        )
-                        
-                        if st.button("✅ Approve", key=f"approve_{proposal['id']}", width="stretch"):
-                            try:
-                                signature = sign_action(
-                                    owner_id=settings.owner_id or "unknown_owner",
-                                    payload=authorization_payload,
-                                )
-                                
-                                _log_dashboard_event(
-                                    event_type="owner_proposal_approved",
-                                    data={
-                                        "proposal_id": proposal["id"],
-                                        "signature": signature,
-                                        "owner_id": settings.owner_id
-                                    }
-                                )
-                                
-                                st.success("✅ Approved!")
-                                st.code(signature, language="text")
-                                st.rerun()
-                                
-                            except ConstitutionalError as exc:
-                                st.error(f"Failed: {exc}")
-                        
-                        if st.button("❌ Reject", key=f"reject_{proposal['id']}", width="stretch"):
+                st.divider()
+                
+                # Display proposal card
+                proposal_card(proposal)
+                
+                # Show vote result if available
+                if proposal.get("vote_result"):
+                    vote_summary(proposal["vote_result"])
+                
+                # Approval buttons
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button(f"✅ Approve", key=f"approve_{proposal['id']}", type="primary"):
+                        try:
+                            from governance_layer.orchestrator.langgraph_state_machine import resume_from_approval
+                            
+                            authorization_payload = _build_authorization_payload(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                proposal=proposal,
+                            )
+                            signature = sign_action(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                payload=authorization_payload,
+                            )
+                            
+                            # Resume governance cycle with approval
+                            result = resume_from_approval(
+                                proposal_id=proposal["id"],
+                                owner_signature=signature,
+                                owner_id=settings.owner_id or "unknown_owner",
+                                approved=True
+                            )
+                            
+                            _log_dashboard_event(
+                                event_type="owner_proposal_approved",
+                                data={
+                                    "proposal_id": proposal["id"],
+                                    "signature": signature,
+                                    "owner_id": settings.owner_id
+                                }
+                            )
+                            
+                            st.success("✅ Proposal approved! Execution proceeding...")
+                            st.session_state["refresh_trigger"] += 1
+                            st.rerun()
+                            
+                        except Exception as exc:
+                            st.error(f"Failed to approve: {exc}")
+                            logger.exception("Approval failed")
+                
+                with col2:
+                    if st.button(f"❌ Reject", key=f"reject_{proposal['id']}"):
+                        try:
+                            from governance_layer.orchestrator.langgraph_state_machine import resume_from_approval
+                            
+                            authorization_payload = _build_authorization_payload(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                proposal=proposal,
+                            )
+                            signature = sign_action(
+                                owner_id=settings.owner_id or "unknown_owner",
+                                payload=authorization_payload,
+                            )
+                            
+                            # Resume governance cycle with rejection
+                            result = resume_from_approval(
+                                proposal_id=proposal["id"],
+                                owner_signature=signature,
+                                owner_id=settings.owner_id or "unknown_owner",
+                                approved=False
+                            )
+                            
                             _log_dashboard_event(
                                 event_type="owner_proposal_rejected",
                                 data={
@@ -458,12 +540,114 @@ def main() -> None:
                                     "owner_id": settings.owner_id
                                 }
                             )
-                            st.warning("Rejected.")
+                            
+                            st.warning("❌ Proposal rejected by owner.")
+                            st.session_state["refresh_trigger"] += 1
                             st.rerun()
-                    
-                    st.divider()
+                            
+                        except Exception as exc:
+                            st.error(f"Failed to reject: {exc}")
+                            logger.exception("Rejection failed")
 
     with tab4:
+        st.header("🤖 LLM Model Health Status")
+        
+        # Refresh button
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Refresh Health Check", type="primary"):
+                st.rerun()
+        
+        try:
+            # Get model health summary
+            health_summary = get_model_health_summary()
+            
+            # Overall status
+            st.divider()
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Total Models", health_summary["total_models"])
+            
+            with col2:
+                healthy_count = health_summary["healthy_count"]
+                unhealthy_count = health_summary["unhealthy_count"]
+                st.metric("Healthy", healthy_count, delta=f"-{unhealthy_count}" if unhealthy_count > 0 else None)
+            
+            with col3:
+                can_run = health_summary["can_run_governance"]
+                status_color = "🟢" if can_run else "🔴"
+                st.metric("Can Run Governance", f"{status_color} {'Yes' if can_run else 'No'}")
+            
+            st.divider()
+            
+            # Detailed model status
+            st.subheader("Model Details")
+            
+            if health_summary["models"]:
+                for model in health_summary["models"]:
+                    with st.container():
+                        col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+                        
+                        with col1:
+                            status_icon = "✅" if model["is_healthy"] else "❌"
+                            st.write(f"{status_icon} **{model['provider']}**")
+                            if model.get("model_name") and model["model_name"] != "unknown":
+                                st.caption(f"Model: {model['model_name']}")
+                        
+                        with col2:
+                            if model["is_healthy"]:
+                                st.success("Healthy")
+                            else:
+                                st.error("Unhealthy")
+                        
+                        with col3:
+                            if model.get("response_time_ms"):
+                                st.metric("Response Time", f"{model['response_time_ms']:.0f}ms")
+                            else:
+                                st.write("—")
+                        
+                        with col4:
+                            if not model["is_healthy"]:
+                                error_type = model.get("error_type", "unknown")
+                                error_msg = model.get("error", "Unknown error")
+                                
+                                # Color code error types
+                                if error_type == "api_key_missing":
+                                    st.error(f"🔑 **API Key Issue**: {error_msg}")
+                                elif error_type == "network_error":
+                                    st.warning(f"🌐 **Network Error**: {error_msg}")
+                                elif error_type == "rate_limit":
+                                    st.warning(f"⏱️ **Rate Limit**: {error_msg}")
+                                elif error_type == "model_not_found":
+                                    st.error(f"🔍 **Model Not Found**: {error_msg}")
+                                elif error_type == "service_unavailable":
+                                    st.warning(f"🔧 **Service Unavailable**: {error_msg}")
+                                elif error_type == "billing_error":
+                                    st.error(f"💳 **Billing Issue**: {error_msg}")
+                                else:
+                                    st.error(f"❓ **{error_type}**: {error_msg}")
+                            
+                            if model.get("checked_at"):
+                                st.caption(f"Checked: {model['checked_at'][:19]}")
+                        
+                        st.divider()
+            else:
+                st.info("No models configured.")
+            
+            # Warning if governance cannot run
+            if not health_summary["can_run_governance"]:
+                st.error(
+                    f"⚠️ **Warning**: Governance cycles cannot run. "
+                    f"Only {health_summary['healthy_count']}/5 required models are healthy. "
+                    f"Please fix the unhealthy models before creating proposals."
+                )
+            
+        except Exception as e:
+            st.error(f"Failed to check model health: {e}")
+            logger.exception("Model health check failed in dashboard")
+    
+    with tab5:
         st.header("Audit Trail")
         
         recent_logs = get_recent_logs(limit=100)

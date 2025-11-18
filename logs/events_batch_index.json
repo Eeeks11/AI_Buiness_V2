@@ -1,4 +1,1029 @@
 {
-  "batches": [],
-  "total_entries_pinned": 0
+  "batches": [
+    {
+      "batch_id": "2025-11-18T01:07:59.435085+00:00_100",
+      "tx_id": "arweave_tx_mock_9a16143d2aa1df6bd0d95c1d622a0d2e95cf976159980e951d1b87a912d8c684",
+      "created_at": "2025-11-18T01:07:59.435091+00:00",
+      "entry_count": 100,
+      "last_chain_hash": "c27a1a6639792995c255e54b2712a597a38823f1cb84b8a78b58e7582dfe0c4a",
+      "batch_hash": "b17b101c560349066e93bd8d9a7d00a490c7ca5442645efec58ac20e96ee8ce8",
+      "start_index": 0,
+      "end_index": 100,
+      "manifest_entries": [
+        {
+          "timestamp": "2025-11-17T21:44:36.274541+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "02a90fa7524277fa77b30348adb43203221b5a764e217d4afdcceae97db1a61b"
+        },
+        {
+          "timestamp": "2025-11-17T21:44:37.473668+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "e00aae0f7d6e0c423f64c7f53a1ac04bcad83e1d9fa3cb5839a3146827a3620e"
+        },
+        {
+          "timestamp": "2025-11-17T21:44:37.474039+00:00",
+          "event_type": "context_built",
+          "chain_hash": "3af8252057b38a999053918881537e30fe9044bc08d9ca4b33068109fdd33312"
+        },
+        {
+          "timestamp": "2025-11-17T21:44:37.474102+00:00",
+          "event_type": "governance_state_entry",
+          "chain_hash": "c433a55c850e48929c59e6d6e7e8560d15365845af05c395767483a0be4bab74"
+        },
+        {
+          "timestamp": "2025-11-17T21:44:37.474162+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "b55dc2bba734d65d97af3be14c10bcba4d81b2e0aac915c6b4e461ee3a79baee"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:19.638070+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "d99101eebd4a02ed9172d016b072884f3cc4634bba007aaa6a3061f9d24a4a12"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:19.640344+00:00",
+          "event_type": "governance_state_entry",
+          "chain_hash": "3a0ee75fa08451f1f2ee42eac0e7f4e3854fc400c4b9b79930b5184a9d13b4cd"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:19.640584+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "bc5be900776378ab6377f2e0a4008494ee1b9b96587f80de279f4827571ab401"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:34.130646+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "c04960f644da0504ff708f9ee181c90dfa2ae5b3845851560f07f80b182de473"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:34.376434+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "0d11e3420282e4f2bdc4f004765a4bfa5ba1bb89cefb6355067cf7854dde76ee"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:34.536799+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "cae8b03cb6144db6e2f2934c18374fdea71decda9bde9d3b9205ce31b4c5a6e5"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:34.537205+00:00",
+          "event_type": "context_built",
+          "chain_hash": "26a82699a9c25b4a527b6e691fba93062124ee5826a8af7cf3aa48e6dfa6cf40"
+        },
+        {
+          "timestamp": "2025-11-17T21:45:34.537303+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "5333f538aef185a0c7b22f89fad5ab22e063bcc6be9845fab4879ff9665be3ba"
+        },
+        {
+          "timestamp": "2025-11-17T21:46:40.472108+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "4d7756c66a144423cbebe0711e5dd46a1f3108832af94dbbc50716b31f33a3b4"
+        },
+        {
+          "timestamp": "2025-11-17T21:46:40.473457+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "4825a8520c8bab8f125c06b72417dd24f40795042396040c35f736bb8b6a045d"
+        },
+        {
+          "timestamp": "2025-11-17T21:46:40.473759+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "2c37ca5fb631f982c26049d4349bb18dc211823961c769e27101ec41b59ec362"
+        },
+        {
+          "timestamp": "2025-11-17T21:47:08.927830+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "2dbc9a0eeaf6f291d149879c0ac0765c73d060f72f0f395f189f5719d8d838d6"
+        },
+        {
+          "timestamp": "2025-11-17T21:47:09.978477+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "941d345d785bb34aff10da737e01b970975830a10aee8ffac056edcf325718de"
+        },
+        {
+          "timestamp": "2025-11-17T21:47:10.684604+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "aea990a33d218925864b39efe7f3689aeaf09296efe7ac3dd882150b4e0b42ff"
+        },
+        {
+          "timestamp": "2025-11-17T21:47:10.684918+00:00",
+          "event_type": "context_built",
+          "chain_hash": "93503fc2dab1a1c5082414fa629ed6ccc63ef6279e0dad93a7c1071ab32b6a68"
+        },
+        {
+          "timestamp": "2025-11-17T21:47:10.685012+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "c4fd714d25a68a2253a480f74c716fc021daa96b07306c43416502308f848718"
+        },
+        {
+          "timestamp": "2025-11-17T21:48:17.793988+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "11dc9a9fe27c53eacba97c0a48090127e72db15254acadf8dd3c5ea9fb9f8fa5"
+        },
+        {
+          "timestamp": "2025-11-17T21:48:17.795484+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "11f5d25d11955df4a574a0abc241d5aec079e5a967659dbbc11dda5c6cb497b1"
+        },
+        {
+          "timestamp": "2025-11-17T21:48:17.795776+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "9ff55cf003972675b4323608c85f58498726ec88c68168eb01f756b7666ff39a"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:07.021605+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "8fdac360a76a17e522e1f941f71c6cdcb0a9ed4c9a0b0cbfe417fe205bb25b35"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:07.220688+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "c6b42f2a1cf83c2344ad152ddc13aaf3c886a7851366c06472152488c9ebcb5c"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:08.530239+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "c74e759034b0b9c851e0997c367fa07c9b896769ea8c0f8761bc61ecffe1da0f"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:08.530675+00:00",
+          "event_type": "context_built",
+          "chain_hash": "052fa80ae91089d406bf465bcd7b7ed0f6429d6e6e930b7e5e6ae973c8c7ef6b"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:08.530810+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "4b8f7b1787d9e85d8afeb9523a37e9426be8c79c025d84cfc79abb05c96226cd"
+        },
+        {
+          "timestamp": "2025-11-17T21:49:12.219381+00:00",
+          "event_type": "llm_call_failure",
+          "chain_hash": "c685e13ac97c0b5d556105a927dc9546f2e1fa3734ad834db725c95897ff6f22"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:06.975507+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "f921238954e2ccefd2c604c0f54214fe8e34044415aef6260d840ff1851a9089"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.102826+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "75bc205d1650101a49caf4e8a2aa34f7dcc31128df14912992fe4b122f3d1f3b"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.500104+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "955566b30ecb877cbad1ce7781027a02a75a7a9b22632df3b2d061ddd459872e"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.657938+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "500666272099c947388166602139cf83ec92ae1210cb54f91962ed1f8846f914"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.658274+00:00",
+          "event_type": "context_built",
+          "chain_hash": "6b6bb3efddc4a774619b8929b6b6b3bd7a94a255e72bd7ec867397fcc89e29bc"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.658378+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "60c0fdea63bd3c1ef4fde3478e20afb1953963f35c53c23192c67de6750c2e65"
+        },
+        {
+          "timestamp": "2025-11-17T21:50:36.658671+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "83917d873f7e056b3ad6bfa5fc4fe26b58a950cdf22f229960bf934f38006d0a"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:09.038565+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "992e83164c0975803ba6689b767dfe22b0a5bf5e7d04323eee4f162b4f082b21"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:09.887310+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "5c2862c2cb97251ca192b5c6b3412ad2495c94147a5a2bd2c24e42948e817001"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:10.255254+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "c79f76ce45877cb46429e447f0040abebc5fa18a1cdc8ddffa4f3e9800dc9d97"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:10.255618+00:00",
+          "event_type": "context_built",
+          "chain_hash": "ae40eb43b239d19de7a95df8716af0d8b7dc1b8f06af0e9c9a8667082bb4749d"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:10.255753+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "94ded178d048b290ce7ed118b0809d78138d9973d7c3229d89c384b4b7432f41"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:10.256046+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "fab641fcbdbae04be5406e1a21463445fc46566b0cbe3309cb1196d0bc16f38b"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:42.759118+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "f837ddf2b4d118c25885c6c3a41c9184b8dae5354feb8a79bf9fd75098c1bff0"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:43.689204+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "096146b762d5f67da9c6f0707c440ad8d3706448b61082a954b91eb1a3539e9c"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:44.526241+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "a28148e742e7442b0e65529de40f076df71a37af22347f30a05bb0f7548e9aee"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:44.526551+00:00",
+          "event_type": "context_built",
+          "chain_hash": "48ce30e28638899cb56c364d0e557fae5636bc4aa12318105d68ebf210787d45"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:44.526696+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "38976a95204ccd08dacf2dc1f06bed29d60dae2647eda311fa6fa9f5210647a8"
+        },
+        {
+          "timestamp": "2025-11-17T21:51:44.526999+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "d0de8a77aea8ac287387aa810522aee1a2a103b5e79adc208506b8568f676e14"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.563971+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "eb5e61a3f7f394df62824d660f8ec63aef35b02f4b638d7a01eea2edf05bb0c1"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.809248+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "0a3f4ec1ea4a8550f76e6e8f8eac78c122c5be94665b724656357ca82eac13a1"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.972920+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "21787f69a89e7654f701539895d9be7b5d071634f3fbd236baca9fe81625bf82"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.973296+00:00",
+          "event_type": "context_built",
+          "chain_hash": "1185ef613ab895ce14d9369132b5e795921178aaab8a34cb0bf290c4c7a5fb7e"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.973434+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "47a8add7e8cdb5308e2b7cb8b0fb147035743adee93f08924eae1aa1c397d51c"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:21.973759+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "f2ca45d856ac2f328e11794a17ced736c42653eb6cb941981a7e235c1bf09252"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:49.812271+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "5732eced68bfdc69116e84e173f923dcef7c424270933fc4584d110d2ae1a0c5"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:50.156341+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "fe076a73d87bd1f9fdd84279b276c1ae61d7db1eb399d1fc4750165eefa20d19"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:50.338804+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "d933ae3e2da120fd812bdfbd2dccec08e395454c488eeb3921c3dfd17659c2fc"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:50.339220+00:00",
+          "event_type": "context_built",
+          "chain_hash": "8822d0a57d42dac76eea79f9a1a670606b46aa4b970764caabc5124ae91de224"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:50.339376+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "ffd11411e7d709e4ee71ca309d252e9d27fd6802492fda143374a794aa0ffacc"
+        },
+        {
+          "timestamp": "2025-11-17T21:52:50.339749+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "5a3c9f3875daa6535791ad7350db359db03985b3f48349a14856e04c4dcd4a6f"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:19.883542+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "0728878f022e6ea987319c2eb90bf9a9bc732eab2e6f6d2bd843aeba239e7ead"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:20.105906+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "c4aaef010b63e3380d269c8dfd853dae9c00b7087ae66aaaabe5f429b34e7c79"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:20.267530+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "58a34eb5752aba5629052ad3a617d323e1f40bbe522496c0d271ab1fe7598d8e"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:20.267956+00:00",
+          "event_type": "context_built",
+          "chain_hash": "d53b388f46b3a082025d11ac273168adf57a38cf475cf018045ba4e5013b2c55"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:20.268128+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "36cac1c963e89bde020a8b93addbc7f9af1c9c855845d117edef573922b7e7d3"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:20.268525+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "e6f049dd3057d4038f366cc781e3ca55414f03c9136cf5c4a689270eb89e3060"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:50.373199+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "51121b227d4cc1d5ba8a2d05d2ff09cff8b132c3119a92ac9bb600f4ee45fa18"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:50.533573+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "df771f63edbda1372e251f9992fbca66a8485e11f45d7a9328ffcfa25ff21581"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:51.281944+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "5e31d4e3408425c57f8eee0af6a380b7cfa57002a81c0d6010fbcb5f4f7f67e2"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:51.282319+00:00",
+          "event_type": "context_built",
+          "chain_hash": "18913e29ec42d592f56368830490833efe9b63db1a0da49cddd425eda4bc7762"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:51.282699+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "3f462ee824a5487ee7ae454a61fcb73ccd2fe47b099144b48b21a0c929581245"
+        },
+        {
+          "timestamp": "2025-11-17T21:53:51.283098+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "0f448befe87a7c6423f25d69332d8f4004b155cadc769294bc41d0f715b14248"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:20.581522+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "bd1151aede9e215075fe1a2861654de280028a5d3cb0c3a1ad739c32e0b0478e"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:20.700406+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "6241d2c9ee03fe5f5adba1879954570d98e8c1e59a6e2fd37307ace731f1e594"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:23.007575+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "da6075e0ff0e9d8fb9a9cd9733bccda8117bbee90dbfaf1877bb2d068d5fe7c5"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:23.008011+00:00",
+          "event_type": "context_built",
+          "chain_hash": "74b9fc9566a91069283d78eb3f84739bb008b60fe96414416a67e3f121b37831"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:23.008189+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "4e8af9b849a1423dceb71ea1cf075211ce152c919b4c8c4120acc43436ea95e0"
+        },
+        {
+          "timestamp": "2025-11-17T21:54:23.008540+00:00",
+          "event_type": "board_ideation_conducted",
+          "chain_hash": "f0464b81e7af39c09475261da69a5dbec3a7c7734d1f8d140196cd0c52c3114d"
+        },
+        {
+          "timestamp": "2025-11-17T21:57:50.923604+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "3ee8eccde3a3f2ea1d443376a901f69a121a86e3875ced5eceaf72c5d08c2f92"
+        },
+        {
+          "timestamp": "2025-11-17T21:58:19.406779+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "df12e77bcb322aba505148283e1566716fd50e88e3878bfe49b5fd4af6d319c7"
+        },
+        {
+          "timestamp": "2025-11-17T21:58:19.777750+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "e6b9e614552f7d537361d10cc55ea9d08498b81df138a376d38d26ec226e7b6d"
+        },
+        {
+          "timestamp": "2025-11-17T21:59:04.934510+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "079701fcdf738d9a4416023c47b625de630bc261eebccdffdd6872d520f0ae9c"
+        },
+        {
+          "timestamp": "2025-11-17T21:59:04.936792+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "40c3937e4346dd80f3a71c1b383cc73ab1f56ea6dc5fe5cab2d4b19ff6678560"
+        },
+        {
+          "timestamp": "2025-11-17T21:59:34.960911+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "bbb19181dd92296d5d4133d7e1edfa5fec92a160c8c5a72f2f002e1708abb215"
+        },
+        {
+          "timestamp": "2025-11-17T21:59:35.651188+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "558d72233c1d6a31e42642e55000035cf9ebfb8dcd8e9969a320dc5ddc9cd053"
+        },
+        {
+          "timestamp": "2025-11-17T22:00:31.389337+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "0328563fc91e57a436b61ab3c35034438f959baa035c7677c18f000679db7bed"
+        },
+        {
+          "timestamp": "2025-11-17T22:00:31.391198+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "ec2fb0a31bd305d286ed37c3d0672d5133649ead5dd8e7b6b1ce9be008413853"
+        },
+        {
+          "timestamp": "2025-11-17T22:01:03.960812+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "98babc18cefa3b5620e886d1b27474ccc4edf2daba858104e54f426ef35b24b8"
+        },
+        {
+          "timestamp": "2025-11-17T22:01:04.610984+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "c2bff576dee110e0dce83f57f6e5253ce6db2c9149f3f432400a183d079bb381"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:26.488281+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "bc11c0bbb77474f6b238891816ddb56e1dab6f718d7a27031e0d93cf91b530a1"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:26.490147+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "eab3e502a0a0e6ad022d77e25f30cd15bbe13b5c54fcf4c8035710a1ecb956b6"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:54.535756+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "1bc61a948dfb785da5f6fbaa1cee9b4f1d237e9350153c5db04b43f6a79f1138"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:54.918361+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "54058097ae5a00aff7aa4df15774e4c2bc848e86728838f20b753965b57633af"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:58.556948+00:00",
+          "event_type": "llm_call_failure",
+          "chain_hash": "b768ee75c985eb49669867de462f9b40f30978fe7573eb83baeb80e51da77fc5"
+        },
+        {
+          "timestamp": "2025-11-17T22:02:58.562130+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "f8872002fc2d1df58ee6ab4486181488eb99e589183c43a00c0ffe77da9001f5"
+        },
+        {
+          "timestamp": "2025-11-17T22:06:53.105473+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "ed2b056009b73ad661b076db2d2491d66ee5297a4836e6e7d09dc5b4bcb35b12"
+        },
+        {
+          "timestamp": "2025-11-17T22:07:25.327083+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "dc6db93702e5eedb7669d276fb6b634a5c4a1e8298164ec51f358230bf6ac954"
+        },
+        {
+          "timestamp": "2025-11-17T22:07:26.044941+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "320dc72d2d1c11f4d9a7e1e990b20f3de3219199e24277ecdb6f6783d1a07648"
+        },
+        {
+          "timestamp": "2025-11-17T22:08:11.544913+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "c27a1a6639792995c255e54b2712a597a38823f1cb84b8a78b58e7582dfe0c4a"
+        }
+      ]
+    },
+    {
+      "batch_id": "2025-11-18T01:17:53.075373+00:00_200",
+      "tx_id": "arweave_tx_mock_6b5e3575a135789f042afd4ef743398c4aea1d5fb0d687a3f2ca12da31055ce4",
+      "created_at": "2025-11-18T01:17:53.075378+00:00",
+      "entry_count": 100,
+      "last_chain_hash": "065a825c90d554a41aa2202035e442af0d8e74bbd80fbb0f06c309933afa5b7b",
+      "batch_hash": "18d44545fea93fb68fbe16a3632f8cb605ede2cd502621acd7a4bc4ad1a20516",
+      "start_index": 100,
+      "end_index": 200,
+      "manifest_entries": [
+        {
+          "timestamp": "2025-11-17T22:08:11.547798+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "25839afbdee791708f38ad00945c98d12e630e49f6b0829d0a008806195e025d"
+        },
+        {
+          "timestamp": "2025-11-17T22:08:47.878213+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "b700112400d8220c6fc50b897365a79eb7d74acc3683ab162d3a97273870bd4a"
+        },
+        {
+          "timestamp": "2025-11-17T22:08:48.526147+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "32e3fd6fe06d8a02765f20ed1f663cf9240472e2d827fa5c71b947e43e229cf2"
+        },
+        {
+          "timestamp": "2025-11-17T22:09:48.196061+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "c331b3322f4678324ca0cf8de7fb8a82a32d99052005a82948505df2d87e9e0c"
+        },
+        {
+          "timestamp": "2025-11-17T22:09:48.198029+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "ee0c2a457c17d0d0c9161bc726efbad6e7a9dbf947ad467760a88626991c4f6f"
+        },
+        {
+          "timestamp": "2025-11-17T22:10:19.431712+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "08f27bfa77444c710af89924e3732f5257331ec8db3e4162784f758fb6a7e507"
+        },
+        {
+          "timestamp": "2025-11-17T22:10:19.883377+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "7b0e998601e66c90ed3d96a3e0e89cb875c907173007d5ba6d68eec2ec9b658b"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:20.416128+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "06c792c54d65c9bcda47e7327445cd8c0ee3466ac9182851dde6e0eb4a61249e"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:20.418116+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "ed8e9558b481e29a0bd6c246807689ea6a4c33ff729a0296c3fa7ae56d1f7053"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:53.882184+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "8f7e5f7db63765ca0424a059de0447f78829d5f1fcca1dbc22e2e60ea79f4c69"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:54.476035+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "42dde14d72e123a3ba6534bcebcb1d09bab464aa424e5a49ebfc782f27aeea69"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:58.156585+00:00",
+          "event_type": "llm_call_failure",
+          "chain_hash": "9c000a95dfc57dc8428122f29f669622a284e145ead9057febc8dda6899698f5"
+        },
+        {
+          "timestamp": "2025-11-17T22:11:58.163058+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "caf5a93db28afc33464f0ec2975c38bb7792beb34c4d3077c902a11dd4b65961"
+        },
+        {
+          "timestamp": "2025-11-18T01:07:59.434539+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "2add2371771ca01686a139df82db016cc31014f207828815587b085a9ebe4d6b"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:33.193259+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "5779086bc5afaf2cd5308ad5d479f8dac9d46d5041e7fbfc802e1247ec1a6e4b"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:33.886411+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "e5cee7b35d3367b6f8547a7e5fa8606da1bffc8edb6e06a5f0f14a50248d3925"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:34.626801+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "786571dbc022144672d9f1ccc6674e4d128141295fe0c3fb5a674817f5001a95"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:34.627280+00:00",
+          "event_type": "context_built",
+          "chain_hash": "25de53200ca502781d56c29d8e5195071dc469af818d7258ae2da42dab358a93"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:34.627492+00:00",
+          "event_type": "governance_state_entry",
+          "chain_hash": "4be5ec6b707ebc4f853b8d4c14782d240195a7a1b4ba26b19c30fa1e46cb7eda"
+        },
+        {
+          "timestamp": "2025-11-18T01:08:34.627568+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "13b30d8f4d2a3736a5edceca70439abb10103c5a9d97b9e2b3d41a6a03426cc1"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:07.211344+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "d4f7d72ff85f9625d60c32e694087d91b24740de266e4abedafd71b88f8d533c"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:07.213506+00:00",
+          "event_type": "governance_state_entry",
+          "chain_hash": "ae02a67529b849779d24b0ef46189ac16dcf18efd8cd261c9b71d8ddcc9933ed"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:07.215915+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "b25a57823891116510d657a7c5959f15a757cee7446a87bfc76d61372bcad2b6"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:22.630257+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "96b24712b0717a6e3ba7246ec1ac5874fd54eb464564a680059f8e49a4f46785"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:23.352248+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "7cd0a3d0be8008d1c630a8d96da3cda997b8ca732e116c5d137c3b30fb29d0fa"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:24.610267+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "6666116a38b49e5b63f70e8ce93721c797c1e5314221111a9e201d1796c802d6"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:24.610816+00:00",
+          "event_type": "context_built",
+          "chain_hash": "b5ac87b965c8eba5e8f0b7f0fac53e6dda19da231cb7c06b5952fe6ff1aecb6e"
+        },
+        {
+          "timestamp": "2025-11-18T01:09:24.610991+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "58a02a9164f8845613ebca328b4e4ce64f00d75f0cf9f1fd3df5adc56225b97c"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:07.135393+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "43fa51338fc39447add66f7aa269eb3c0292f218aa2c49bf2de593fa5d5d49a2"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:07.136578+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "6d43e1bb314c5be86e7ea1c31bc573a07b345eb70e3ce7e80766850812d17115"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:07.137296+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "4ca82c37ed4e272c0742a7262e03a9b12818ad05a7477ff5ed334c4e5cc163c5"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:41.069790+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "dc7676a83767738c1d057b763876e63072e268b10b82b8dc44f5b742f4e2b799"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:41.306896+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "f9eb667cb066353ad90bf58194583be2e3f36ef6678d5145b703675a5ef35c74"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:41.802172+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "834c8c806061f19f6501febbb344816e2281c4bdd10b48d3503443b616c8581e"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:41.802480+00:00",
+          "event_type": "context_built",
+          "chain_hash": "a150a45d7771c2f60eb419ea2586b097fa10ed5e9eaf82da6e8645444d23b70f"
+        },
+        {
+          "timestamp": "2025-11-18T01:10:41.802626+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "d9c28b59e74dffb30f5e48af6c36af457b014bb15cccde065b6a039fc9883e6b"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:31.501881+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "372a2dd67d75e03ecc181ab6e55a1e0a99b58cc4dbaf933790c957d5cf8e3112"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:31.503106+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "0b348cf7d9b49fd9d7df68078c561a16c6a46cf4a0aa27872927980b22aa59c9"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:31.503932+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "4c39f1b6968679db00ae06d6e550a616e53f9927cb6817a3d43d4ac94b44cc1f"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:49.955343+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "09b030af3a29ab37d0ca8b4e6edd885344b9767b140dfe90bd015aa8bc996ec5"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:50.139579+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "385f5ccb2354f6dc228c5364d755d56a9914737dd1d1beb4485164c3629b2673"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:50.306814+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "12c207ce7add271f99e0ac2dd8227617eb467436f748058048937238287eb2f4"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:50.307116+00:00",
+          "event_type": "context_built",
+          "chain_hash": "d74bfdc9c62939cb75922f0803963c9d3479173a68ccfd81eb1ac88acc0498af"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:50.307266+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "31d375332f01893cca982196449f0b2e86b5e52912ce9f24bf93d59b762bd5db"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:57.637894+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "865900ecc37b1abc57eacd69d314a1e9fa064740f3f664724976f7416a328e61"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:57.638015+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "e9606a8373545d2b747e054400c5801b758cd43b862fb2bffbefb127d9c6ca39"
+        },
+        {
+          "timestamp": "2025-11-18T01:11:57.639548+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "abf7cc81a91d56fd125aefe4f7bb690d45b3d7b47bb4797e0dddf2274f1d2a02"
+        },
+        {
+          "timestamp": "2025-11-18T01:12:18.094048+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "4af612dc14787c4b3b89b752babdff58865f176a06bcc4e72efbbaa34cb0370e"
+        },
+        {
+          "timestamp": "2025-11-18T01:12:18.343550+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "3b3fc4177ea7bb04992c03abeccf0c92a95760de8d664d56af5a047d7a2a4fe4"
+        },
+        {
+          "timestamp": "2025-11-18T01:12:18.520817+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "0937310fcacddeb2ebb7b8fad08351778fb92b9976a333c573fc8931315d08e4"
+        },
+        {
+          "timestamp": "2025-11-18T01:12:18.521156+00:00",
+          "event_type": "context_built",
+          "chain_hash": "c0bd829cf1a53327fa3d59218d251ee948d1b2fe33eb14c48713a256d23a1e28"
+        },
+        {
+          "timestamp": "2025-11-18T01:12:18.521292+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "f9b024160ac01a292e87cdfc096e03734ae0b5e4808c8fd3beba15af0e0aabe3"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:13.907773+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "1a04d1827ce4ab3e5df73582cfa9e7996b96c66582082f21cd6d96f1ff0ee1ed"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:13.909207+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "1d07db5b405e59e49244cad088fae973af6b29ce63e7e0ad503d2ea2e7d4ae6b"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:13.910053+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "12b827f8229a01a96ac2df20205f1c84df24f2d289bfc37057dc9b50288b4747"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:31.896560+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "7174dba53fef64b144951afc4a4b8e7ee0ea2f5d33da8ef7e1daf5ebc76023b4"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:32.128291+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "a56edc8e041d5ea6181a97148e1e08747dce13fea4b7c0d16ccf5be179d55fba"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:32.765685+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "e6e8f7b5c093ff44705ea3a3075e832ad1dfccbc087606ffe9f19b0c2ef5884f"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:32.766029+00:00",
+          "event_type": "context_built",
+          "chain_hash": "8f2c9790be5d3bead3e9d05b647e002eb40f2c2016dffef1ccd197d374f0a955"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:32.766167+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "74c850e55d0aa93b9d45dd2fb56a7d6a78c363f79be1829156233f01c24eddac"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:56.022157+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "045e9400cfde8bd3dd28b93f16ccbf28b80e618d932e0ca33ddbe1707178b4a0"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:56.023426+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "2e531a950a43a80516ba4ba606ae0b7f7c1528a066e1073d1722e9c31a02d066"
+        },
+        {
+          "timestamp": "2025-11-18T01:13:56.024262+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "142b07c396ee5821793674c0238be68d0b826a568b0d6b51e8f6c18d93d75d1e"
+        },
+        {
+          "timestamp": "2025-11-18T01:14:17.736206+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "b3947ee426fb06264844879c275b9a712d3688c8b6c4cd859e8cbf8e4c21fcfc"
+        },
+        {
+          "timestamp": "2025-11-18T01:14:17.909549+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "567a3070f0fb80cadcc51d9997a53715d7e3661c81ac582c100388173ce039d0"
+        },
+        {
+          "timestamp": "2025-11-18T01:14:18.090825+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "d1d53a1427a848c5707ada8e693195014adac1b584fc57021211a7013d8fcfe2"
+        },
+        {
+          "timestamp": "2025-11-18T01:14:18.091129+00:00",
+          "event_type": "context_built",
+          "chain_hash": "0f7a88fae80a4a682d4a4d4ff4f0839c7a0fe8daa05b4a1d479c21dfe6240c87"
+        },
+        {
+          "timestamp": "2025-11-18T01:14:18.091270+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "4f088a7ffdb623a561526e0d6b878056c7eae3873d8b10425a75835e55d1bd88"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:05.728120+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "1d190434232d14b773a658f986160688c2bbbd2f22c56f65c8eff767801e92df"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:05.729485+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "378dfe4febf4d7be08c0141cb0d2211ed82d19fac448c1fa90b66dd7d0a9345e"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:05.730368+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "149f113df7bbaad774be8137bf9a9d3e31569789c6a59c955788fc08cce9e62d"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:24.564432+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "054fc84cd981245e4c94a82add29e531b70d6fd1812d242cc276e7ce727d40f6"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:24.765916+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "09401dc3f814c3bf20004c006b59072548fe35892a8df6eae03fe3874f869aa6"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:24.932963+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "fc5ff0dace42426aae5fbaaa332414619d2c81d5f81b903070d0807ecd134f84"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:24.933281+00:00",
+          "event_type": "context_built",
+          "chain_hash": "1658af202856a72ccba6cb576ef9bb6269ef1527f4a53187c037fe4020d56d9c"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:24.933409+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "e6dea8c377d4b08d2b00e33b80cd70274f08ee079b82bca8396b79759bad117d"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:48.621637+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "b41832da5682bb9bce3448991a860f46e2fc430a018440cabd62cf9f68f8cbe4"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:48.622966+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "cdfe1518728ebfa36ffd091928c9d642a48b6f3c01a030d56b797bec902ed7c1"
+        },
+        {
+          "timestamp": "2025-11-18T01:15:48.624163+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "8433b962fe6d6c474fc48e5ec97841cf1ea87d9d23b97beca1331274f5983343"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:19.298405+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "1f772b3af897f4b137644ff8dee690b503fde9f1c1a16eaaa1509e568049158a"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:19.517800+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "bed27413cb78ccec9b10c78aa93f93266793d58e82eb0590297deeacbc9a792b"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:19.742149+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "142e87d65862eb4ec98f44b399a0b98ac602bde616f7b7b66b7d4aff86f17a03"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:19.742467+00:00",
+          "event_type": "context_built",
+          "chain_hash": "b13a3a75dd104781cdb436d15b534b92a87abb355c19aa8d1c4f731f168619fe"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:19.742642+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "2d5ba86d7c8232f9ef51d5936185905cc437f5b0c628eb2785c392c9a7cba29a"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:44.629674+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "939307911c29aa58ac9dcef0607fc43f8670eb112bc53c7d3d8a6634eaf3476d"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:44.630982+00:00",
+          "event_type": "board_deliberation_response_captured",
+          "chain_hash": "e898f1ad07219486407910768aaabd9a1e4136815245473fee56c467cc5add24"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:44.632889+00:00",
+          "event_type": "governance_state_entry",
+          "chain_hash": "5f0abce1c42d97e600b05ec7fc036232ddf666845c60ebc7fe095b47b0e78fb0"
+        },
+        {
+          "timestamp": "2025-11-18T01:16:44.647710+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "18184a0ca528893d4f53fb142cdc4b8559ce4cea1b87c87ebffa188e4cc16611"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.371449+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "7ff708302984bb69a6165306053639239b9dc8055f7e07ae299893de41b336c3"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.564852+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "d94c18629714ba7b37baf957c17e85a9c38f8c754fe550f8dd82d37e6dbba383"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.749388+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "29a2b802deda5b32233813bd02acb985dd3a10c83b071a470854ec2f371b9898"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.749686+00:00",
+          "event_type": "context_built",
+          "chain_hash": "70a207952024fc93ead5cba2b0170cc5e0afab6d37c11f61b7a3b1fe8e72d89f"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.749887+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "ca70aef18c2620057e79e393c7897a3420d6909bdebdb0f364b67f137f71fe62"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:30.750748+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "0933f48d584679733d9a9f50384d34f801d9e1dcecfb873c6007efb7b8f52cf1"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:52.564602+00:00",
+          "event_type": "llm_call_success",
+          "chain_hash": "0f96bf425d49c89e3514ef13b26f4e38095bf3c3a1ab299cb392ff4498a9439f"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:52.812948+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "7bfc795d6ff46cc77be9c1a3e3b46cd2d8e873d7185d6a93db0e280d55d4dd57"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:53.073282+00:00",
+          "event_type": "semantic_memory_recall",
+          "chain_hash": "bdaae69dfcbe1b397a7853a673e8f6965655b78be1ef8e6619e63e33f7f64f20"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:53.073601+00:00",
+          "event_type": "context_built",
+          "chain_hash": "37fe2a1e5687f37a426ffdad0f76c7f2eb12fc747c9e13ba5154659be9435b3a"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:53.073763+00:00",
+          "event_type": "role_prompt_generated",
+          "chain_hash": "76fe8b613ece08fa3bd120ede50a2cb601ee77d17376595ec26b1ae37dd53e9c"
+        },
+        {
+          "timestamp": "2025-11-18T01:17:53.074613+00:00",
+          "event_type": "llm_call_attempt",
+          "chain_hash": "065a825c90d554a41aa2202035e442af0d8e74bbd80fbb0f06c309933afa5b7b"
+        }
+      ]
+    }
+  ],
+  "total_entries_pinned": 200
 }

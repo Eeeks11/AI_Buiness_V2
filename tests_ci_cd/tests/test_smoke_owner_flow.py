@@ -12,6 +12,7 @@ from pytest_mock import MockerFixture
 from config_settings import config as config_module
 from owner_control.owner_gate.signature import sign_action
 from governance_layer.orchestrator import langgraph_state_machine as sm
+from langgraph.graph import END
 
 
 def _configure_owner_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -28,6 +29,7 @@ class FakeStateGraph:
 
     def __init__(self, _state_type: Any) -> None:
         self.nodes: Dict[str, Any] = {}
+        self.conditional_edges: Dict[str, Any] = {}
 
     def add_node(self, name: str, func: Any) -> None:
         self.nodes[name] = func
@@ -38,17 +40,39 @@ class FakeStateGraph:
     def add_edge(self, _start: str, _end: str) -> None:
         return
 
+    def add_conditional_edges(self, source: str, condition: Any, mapping: Dict[str, str]) -> None:
+        """Store conditional edge routing for test execution."""
+        self.conditional_edges[source] = {
+            "condition": condition,
+            "mapping": mapping
+        }
+
     def compile(self) -> SimpleNamespace:
         def invoke(state: Dict[str, Any]) -> Dict[str, Any]:
             ordered_phases = [
                 sm.GovernancePhase.IDEATION,
                 sm.GovernancePhase.DELIBERATION,
                 sm.GovernancePhase.VOTING,
-                sm.GovernancePhase.EXECUTION,
             ]
             current_state = state
             for phase in ordered_phases:
                 current_state = self.nodes[phase](current_state)
+            
+            # Handle conditional routing after VOTING
+            if sm.GovernancePhase.VOTING in self.conditional_edges:
+                cond_info = self.conditional_edges[sm.GovernancePhase.VOTING]
+                next_phase = cond_info["condition"](current_state)
+                if next_phase == sm.GovernancePhase.PENDING_APPROVAL:
+                    current_state = self.nodes[sm.GovernancePhase.PENDING_APPROVAL](current_state)
+                    # In tests, skip to execution after pending approval (owner already signed)
+                    current_state = self.nodes[sm.GovernancePhase.EXECUTION](current_state)
+                elif next_phase == END or next_phase == "END":
+                    return current_state
+            
+            # Continue to execution if not already done
+            if sm.GovernancePhase.EXECUTION in self.nodes:
+                current_state = self.nodes[sm.GovernancePhase.EXECUTION](current_state)
+            
             return current_state
 
         return SimpleNamespace(invoke=invoke)
@@ -87,6 +111,22 @@ def test_owner_signature_enables_execution(
             error_messages=[],
             validation_details={},
         ),
+    )
+    
+    # Mock health check to always pass
+    from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+    mock_statuses = {}
+    for i in range(5):
+        provider = f"test_provider_{i}"
+        mock_statuses[provider] = ModelHealthStatus(
+            provider=provider,
+            model_name=f"test_model_{i}",
+            is_healthy=True,
+            response_time_ms=100.0
+        )
+    mocker.patch(
+        "governance_layer.orchestrator.langgraph_state_machine.validate_models_before_governance",
+        return_value=(True, mock_statuses, [])
     )
 
     auth_log_spy = mocker.patch(

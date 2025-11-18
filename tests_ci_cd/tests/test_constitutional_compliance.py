@@ -92,6 +92,23 @@ def test_all_modules_call_validate_compliance(
 
     monkeypatch.setattr(orchestrator, "call_llm", lambda **kwargs: "Simulated response")
     monkeypatch.setattr(orchestrator, "build_agent_context", lambda *args, **kwargs: _context_stub())
+    
+    # Mock health check to always pass
+    from governance_layer.orchestrator.model_health_check import ModelHealthStatus
+    mock_statuses = {}
+    for i in range(5):
+        provider = f"test_provider_{i}"
+        mock_statuses[provider] = ModelHealthStatus(
+            provider=provider,
+            model_name=f"test_model_{i}",
+            is_healthy=True,
+            response_time_ms=100.0
+        )
+    monkeypatch.setattr(
+        orchestrator,
+        "validate_models_before_governance",
+        lambda *args, **kwargs: (True, mock_statuses, [])
+    )
 
     monkeypatch.setattr(context_builder, "get_recent_events", lambda limit=100: [])
     monkeypatch.setattr(context_builder, "summarize_recent_activity", lambda events: "Summary")
