@@ -233,8 +233,6 @@ def main() -> None:
         st.header("Owner Controls")
         st.metric("Authorization Mode", settings.owner_auth_mode)
         st.metric("Owner ID", settings.owner_id or "Not configured")
-        st.write("Active Models")
-        st.write(settings.active_models)
         st.toggle(
             "Owner Gate Enabled",
             value=settings.owner_gate_enabled,
@@ -243,22 +241,77 @@ def main() -> None:
         
         st.divider()
         
-        # Quick model health status
-        st.subheader("Model Health")
+        # Display Roles with Models and Health Status
+        st.subheader("Roles")
         try:
-            health_summary = get_model_health_summary()
-            healthy_count = health_summary["healthy_count"]
-            total_count = health_summary["total_models"]
-            can_run = health_summary["can_run_governance"]
+            # Get role-to-model mapping
+            from governance_layer.governance.board import get_role_provider_map, get_model_assignment
+            from governance_layer.roles.prompt_templates import load_role_configs
             
-            if can_run:
-                st.success(f"✅ {healthy_count}/{total_count} Healthy")
-            else:
-                st.error(f"❌ {healthy_count}/{total_count} Healthy")
-                st.caption("⚠️ Governance may fail")
+            role_configs = load_role_configs()
+            role_providers = get_role_provider_map()
+            
+            # Get health summary (already checks all models efficiently)
+            health_summary = get_model_health_summary()
+            health_by_provider = {}
+            # Map health status by provider identifier
+            for model_info in health_summary.get("models", []):
+                provider = model_info.get("provider", "")
+                is_healthy = model_info.get("is_healthy", False)
+                # Store health status by provider identifier (e.g., "openai/gpt-4o")
+                health_by_provider[provider] = is_healthy
+            
+            # Display each role with model and health indicator
+            for role in ["CHAIR", "CEO", "CFO", "COO", "CMO", "LEGAL", "CISO", "SECRETARY"]:
+                if role not in role_configs:
+                    continue
+                
+                # Get model name for display
+                model_assignment = get_model_assignment(role)
+                if model_assignment:
+                    model_name = model_assignment.get("model", "Unknown")
+                    # Format model name nicely - handle common patterns
+                    # e.g., "gpt-5.1" -> "GPT-5.1", "gpt-4o" -> "GPT-4o"
+                    parts = model_name.split("-")
+                    formatted_parts = []
+                    for part in parts:
+                        if part:
+                            # Capitalize common abbreviations (gpt, claude, gemini, etc.)
+                            if part.lower() in ["gpt", "claude", "gemini", "grok", "mistral"]:
+                                formatted_parts.append(part.upper())
+                            else:
+                                formatted_parts.append(part.capitalize())
+                    display_model = "-".join(formatted_parts)
+                else:
+                    # Fallback to provider identifier
+                    provider = role_providers.get(role, "Unknown")
+                    if "/" in provider:
+                        model_name = provider.split("/")[1]
+                        # Format similarly
+                        parts = model_name.split("-")
+                        formatted_parts = []
+                        for part in parts:
+                            if part:
+                                if part.lower() in ["gpt", "claude", "gemini", "grok", "mistral"]:
+                                    formatted_parts.append(part.upper())
+                                else:
+                                    formatted_parts.append(part.capitalize())
+                        display_model = "-".join(formatted_parts)
+                    else:
+                        display_model = provider
+                
+                # Get health status from health summary
+                provider = role_providers.get(role, "")
+                is_healthy = health_by_provider.get(provider, False)
+                health_indicator = "✓" if is_healthy else "✗"
+                
+                # Display role with model and health
+                role_name = role_configs[role].get("name", role)
+                st.write(f"{role_name}: {display_model} {health_indicator}")
+                
         except Exception as e:
-            st.warning("⚠️ Health check unavailable")
-            logger.debug(f"Sidebar health check failed: {e}")
+            logger.warning(f"Failed to display roles with models: {e}")
+            st.warning("⚠️ Role model information unavailable")
         
         st.divider()
         
