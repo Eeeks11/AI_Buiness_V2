@@ -19,6 +19,10 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 import litellm
 
+# Suppress LiteLLM verbose info messages globally
+litellm_logger = logging.getLogger("LiteLLM")
+litellm_logger.setLevel(logging.ERROR)  # Only show errors, suppress INFO/WARNING
+
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent.parent
 from models.core import ConstitutionalRule, ConstitutionalValidation, ConstitutionalError

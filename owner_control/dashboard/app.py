@@ -247,14 +247,20 @@ def main() -> None:
             # Get role-to-model mapping
             from governance_layer.governance.board import get_role_provider_map, get_model_assignment
             from governance_layer.roles.prompt_templates import load_role_configs
-            from governance_layer.orchestrator.model_health_check import check_model_health
+            from governance_layer.orchestrator.model_health_check import get_model_health_summary
             
             role_configs = load_role_configs()
             role_providers = get_role_provider_map()
             
-            # Check health for each role's specific provider (more accurate than matching from summary)
-            # Use a cache to avoid checking the same provider multiple times
-            provider_health_cache = {}
+            # Use the same health summary as Model Health tab for consistency
+            health_summary = get_model_health_summary()
+            
+            # Build provider -> health status map from health summary
+            provider_health_map = {}
+            for model_info in health_summary.get("models", []):
+                provider = model_info.get("provider", "")
+                is_healthy = model_info.get("is_healthy", False)
+                provider_health_map[provider] = is_healthy
             
             # Display each role with model and health indicator
             for role in ["CHAIR", "CEO", "CFO", "COO", "CMO", "LEGAL", "CISO", "SECRETARY"]:
@@ -295,22 +301,9 @@ def main() -> None:
                     else:
                         display_model = provider
                 
-                # Get health status for this role's specific provider
+                # Get health status from health summary (same source as Model Health tab)
                 provider = role_providers.get(role, "")
-                if provider:
-                    # Check cache first
-                    if provider not in provider_health_cache:
-                        try:
-                            # Quick health check with shorter timeout for sidebar
-                            health_status = check_model_health(provider, timeout_seconds=2.0)
-                            provider_health_cache[provider] = health_status.is_healthy
-                        except Exception as e:
-                            logger.debug(f"Health check failed for {role} ({provider}): {e}")
-                            provider_health_cache[provider] = False
-                    is_healthy = provider_health_cache[provider]
-                else:
-                    is_healthy = False
-                
+                is_healthy = provider_health_map.get(provider, False)
                 health_indicator = "✓" if is_healthy else "✗"
                 
                 # Display role with model and health

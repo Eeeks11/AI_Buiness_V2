@@ -15,6 +15,10 @@ from datetime import datetime
 # Third-party
 import litellm
 
+# Suppress LiteLLM verbose info messages globally
+litellm_logger = logging.getLogger("LiteLLM")
+litellm_logger.setLevel(logging.ERROR)  # Only show errors, suppress INFO/WARNING
+
 # Local - models first
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
