@@ -384,7 +384,7 @@ def get_model_health_summary() -> Dict[str, Any]:
             if not provider or provider == "Unknown":
                 continue
             try:
-                health_status = check_model_health(provider, timeout_seconds=10.0)
+                health_status = check_model_health(provider, timeout_seconds=15.0)
                 health_results[provider] = health_status
             except Exception as e:
                 logger.warning(f"Health check failed for {provider}: {e}")
