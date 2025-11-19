@@ -58,7 +58,9 @@ from utilities.logger import log_event
 logger = logging.getLogger(__name__)
 
 _ROLE_PROVIDER_CONFIG_PATH = project_root / "config_settings" / "role_provider_map.json"
+_MODEL_ASSIGNMENTS_PATH = project_root / "config_settings" / "model_assignments.json"
 _ROLE_PROVIDER_CACHE: Optional[Dict[str, str]] = None
+_MODEL_ASSIGNMENTS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
 
 
 def _load_role_provider_map() -> Dict[str, str]:
@@ -155,12 +157,74 @@ def _load_role_provider_map() -> Dict[str, str]:
     return merged_map
 
 
+def get_model_assignment(role: str) -> Optional[Dict[str, Any]]:
+    """
+    Get model configuration for a specific role from model_assignments.json.
+    
+    Args:
+        role: Role identifier (e.g., "CEO", "CHAIR")
+        
+    Returns:
+        Dictionary with provider, model, temperature, max_tokens, description
+        or None if not configured
+    """
+    global _MODEL_ASSIGNMENTS_CACHE
+    
+    if _MODEL_ASSIGNMENTS_CACHE is None:
+        if _MODEL_ASSIGNMENTS_PATH.exists():
+            try:
+                with open(_MODEL_ASSIGNMENTS_PATH, "r", encoding="utf-8") as f:
+                    _MODEL_ASSIGNMENTS_CACHE = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load model_assignments.json: {e}")
+                _MODEL_ASSIGNMENTS_CACHE = {}
+        else:
+            _MODEL_ASSIGNMENTS_CACHE = {}
+    
+    role_key = role.upper()
+    return _MODEL_ASSIGNMENTS_CACHE.get(role_key)
+
+
 def get_role_provider_map(refresh: bool = False) -> Dict[str, str]:
     """
     Retrieve the cached role-to-provider mapping (optionally refreshing it).
+    
+    If model_assignments.json exists, it will be used to generate provider identifiers
+    in the format "provider/model". Otherwise, falls back to role_provider_map.json.
     """
     global _ROLE_PROVIDER_CACHE
     if refresh or _ROLE_PROVIDER_CACHE is None:
+        # Try to use model_assignments.json first
+        if _MODEL_ASSIGNMENTS_PATH.exists():
+            try:
+                with open(_MODEL_ASSIGNMENTS_PATH, "r", encoding="utf-8") as f:
+                    model_assignments = json.load(f)
+                
+                # Convert model_assignments to provider map format
+                provider_map = {}
+                for role, config in model_assignments.items():
+                    if role == "fallback":
+                        continue
+                    if isinstance(config, dict) and "provider" in config and "model" in config:
+                        provider_map[role.upper()] = f"{config['provider']}/{config['model']}"
+                
+                if provider_map:
+                    logger.info(f"Loaded model assignments from {_MODEL_ASSIGNMENTS_PATH}")
+                    _ROLE_PROVIDER_CACHE = provider_map
+                    # Validate provider diversity
+                    provider_families = {p.split("/")[0] for p in provider_map.values()}
+                    if len(provider_families) < 5:
+                        logger.warning(
+                            f"Only {len(provider_families)} distinct providers in model_assignments.json, "
+                            f"but Rule 8 requires 5+. Falling back to role_provider_map.json"
+                        )
+                        _ROLE_PROVIDER_CACHE = _load_role_provider_map()
+                    else:
+                        return dict(_ROLE_PROVIDER_CACHE)
+            except Exception as e:
+                logger.warning(f"Failed to load model_assignments.json: {e}, falling back to role_provider_map.json")
+        
+        # Fall back to role_provider_map.json
         _ROLE_PROVIDER_CACHE = _load_role_provider_map()
     return dict(_ROLE_PROVIDER_CACHE)
 

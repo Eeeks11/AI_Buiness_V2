@@ -76,24 +76,14 @@ def _create_proposal_form() -> Optional[dict]:
                 placeholder="Enter detailed proposal description",
                 height=150
             )
-            col1, col2 = st.columns(2)
-            with col1:
-                financial_impact = st.number_input(
-                    "Financial Impact ($)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=1000.0,
-                    format="%.2f"
-                )
-            with col2:
-                legal_risk = st.slider(
-                    "Legal Risk Score",
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=0.0,
-                    step=0.01,
-                    help="Legal risk assessment (0.0 = no risk, 1.0 = high risk)"
-                )
+            financial_impact = st.number_input(
+                "Financial Impact ($)",
+                min_value=0.0,
+                value=0.0,
+                step=1000.0,
+                format="%.2f",
+                help="Estimated financial impact of this proposal"
+            )
             
             submitted = st.form_submit_button("Submit Proposal", type="primary")
             
@@ -107,7 +97,7 @@ def _create_proposal_form() -> Optional[dict]:
                     "title": title,
                     "description": description,
                     "financial_impact": financial_impact,
-                    "legal_risk": legal_risk,
+                    "legal_risk": 0.0,  # Legal risk will be assessed by Legal role during deliberation
                     "status": ProposalStatus.DRAFT.value,
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat(),
@@ -122,7 +112,7 @@ def _create_proposal_form() -> Optional[dict]:
                         "title": proposal["title"],
                         "description": proposal["description"],
                         "financial_impact": proposal["financial_impact"],
-                        "legal_risk": proposal["legal_risk"],
+                        "legal_risk": proposal["legal_risk"],  # Will be 0.0, assessed later by Legal role
                         "status": proposal["status"]
                     }
                 )

@@ -25,6 +25,7 @@ from models.core import (
     ConstitutionalValidation,
     Proposal,
     ProposalStatus,
+    create_vote_result,
 )
 
 # Local - constitutional enforcement
@@ -42,9 +43,10 @@ from utilities.logger import get_recent_logs
 # Local - orchestrator
 sys.path.insert(0, str(project_root / "governance_layer" / "orchestrator"))
 from llm_router import call_llm
+from iterative_deliberation import conduct_iterative_deliberation
 
 # Local - governance
-from governance_layer.governance.board import get_role_provider_map
+from governance_layer.governance.board import get_role_provider_map, get_model_assignment
 from governance_layer.governance.voting import tally_votes
 from governance_layer.roles.prompt_templates import load_role_configs
 
@@ -296,45 +298,54 @@ def conduct_deliberation(state: GovernanceState) -> GovernanceState:
         
         proposal_id = state["proposal"].get("id", "UNKNOWN")
         deliberation_timestamp = datetime.now().isoformat()
-        role_responses: Dict[str, Dict[str, Any]] = {}
-        aggregated_segments = []
-
-        role_providers = get_role_provider_map()
-
+        
+        # Build role contexts for all roles
+        role_contexts: Dict[str, Dict[str, Any]] = {}
         for role in BOARD_ROLES:
-            role_context = build_agent_context(
+            role_contexts[role] = build_agent_context(
                 role=role,
                 current_proposal=state["proposal"],
                 topic_keywords=state["proposal"].get("keywords", [])
             )
-            prompt = _build_role_deliberation_prompt(role, role_context)
-            provider = role_providers.get(role)
-
-            if not provider:
-                logger.error(
-                    "No provider configured for role",
-                    extra={"role": role, "proposal_id": proposal_id}
-                )
-                raise ConstitutionalError(
-                    f"Rule 8 Violation: No LLM provider configured for board role '{role}'"
-                )
-
-            response = call_llm(
-                provider=provider,
-                prompt=prompt,
-                temperature=0.7,
-                max_tokens=2000
-            )
-
+        
+        # Determine deliberation mode
+        # For formal proposals, use streamlined mode (2 rounds)
+        # For strategic questions/ideation, use full mode (5 rounds)
+        # For now, default to streamlined for proposals
+        deliberation_mode = "streamlined"  # Can be changed to "full" for ideation
+        
+        # Conduct iterative deliberation
+        logger.info(f"Starting iterative deliberation (mode: {deliberation_mode})", extra={"proposal_id": proposal_id})
+        
+        iterative_result = conduct_iterative_deliberation(
+            proposal=state["proposal"],
+            role_contexts=role_contexts,
+            max_rounds=5 if deliberation_mode == "full" else 2,
+            mode=deliberation_mode
+        )
+        
+        # Convert iterative result to format expected by rest of system
+        # Use the last round's responses as the primary responses
+        final_round = iterative_result["rounds"][-1] if iterative_result["rounds"] else {}
+        
+        role_responses: Dict[str, Dict[str, Any]] = {}
+        aggregated_segments = []
+        role_providers = get_role_provider_map()
+        
+        for role in BOARD_ROLES:
+            response = final_round.get(role, f"{role}: No response in final round")
+            provider = role_providers.get(role, "unknown")
+            
             captured_at = datetime.now().isoformat()
             role_responses[role] = {
                 "provider": provider,
-                "prompt": prompt,
                 "response": response,
                 "captured_at": captured_at,
+                "round_number": len(iterative_result["rounds"]),
             }
             aggregated_segments.append(f"{role}: {response}")
-
+            
+            # Log each role's final response
             try:
                 base_log_event(
                     event_type="board_deliberation_response_captured",
@@ -343,7 +354,10 @@ def conduct_deliberation(state: GovernanceState) -> GovernanceState:
                         "role": role,
                         "provider": provider,
                         "response_length": len(response),
-                        "captured_at": captured_at
+                        "response_preview": response[:200] if role == "CHAIR" else None,
+                        "captured_at": captured_at,
+                        "round_number": len(iterative_result["rounds"]),
+                        "total_rounds": iterative_result["total_rounds"]
                     },
                     metadata={"function": "conduct_deliberation"}
                 )
@@ -352,13 +366,24 @@ def conduct_deliberation(state: GovernanceState) -> GovernanceState:
                     "Failed to log deliberation response capture",
                     extra={"role": role, "error": str(log_exc)}
                 )
-
+        
         combined_deliberation = "\n\n".join(aggregated_segments)
         deliberation_payload = {
             "combined_deliberation": combined_deliberation,
             "deliberation": combined_deliberation,
             "responses": role_responses,
             "timestamp": deliberation_timestamp,
+            # Include iterative deliberation data
+            "iterative_deliberation": {
+                "rounds": iterative_result["rounds"],
+                "total_rounds": iterative_result["total_rounds"],
+                "converged": iterative_result["converged"],
+                "exhausted": iterative_result["exhausted"],
+                "convergence_reason": iterative_result.get("convergence_reason"),
+                "exhaustion_reason": iterative_result.get("exhaustion_reason"),
+                "position_evolution": iterative_result["position_evolution"],
+                "synthesis": iterative_result["synthesis"]
+            }
         }
 
         storage_path = _persist_deliberation_results(proposal_id, deliberation_payload)
@@ -412,6 +437,12 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
     Board members vote on the proposal. Validates vote result (Rules 8, 9).
     If approved, sets status to pending_approval (Rule 10 requires owner approval).
     
+    Voting Structure (Business Plan Section 4.2):
+    - Only CEO, CFO, COO, CMO vote regularly (25% weight each)
+    - LEGAL and CISO can veto (separate from voting)
+    - CHAIR only votes to break 2-2 ties
+    - SECRETARY does not vote (documentation only)
+    
     Args:
         state: Current governance state
         
@@ -440,40 +471,284 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
             state["proposal"]["status"] = ProposalStatus.VOTING.value
         state["proposal_status"] = ProposalStatus.VOTING
         
-        # Get deliberation result to extract vote directives
+        # Get deliberation result
         deliberation_output = state.get("deliberation_result", {})
+        deliberation_responses = deliberation_output.get("responses", {})
         
-        # For now, create votes based on deliberation (simplified)
-        # In full implementation, would call conduct_vote() from board.py
-        # But that requires vote directives which we'd need to extract from deliberation
-        # For now, use default approval votes for testing
         from models.core import Vote, VoteType, RoleType
         from governance_layer.roles.prompt_templates import load_role_configs
         
         role_configs = load_role_configs()
+        role_providers = get_role_provider_map()
+        proposal_id = state["proposal"].get("id", "unknown")
         votes_list = []
         
-        # Create votes for the 5 primary voters (CEO, CFO, COO, CMO, CHAIR)
-        # Note: CHAIR is included to meet Rule 8 requirement of minimum 5 members
-        primary_voters = ["CEO", "CFO", "COO", "CMO", "CHAIR"]
-        for role in primary_voters:
-            if role in role_configs:
+        # PRIMARY VOTERS: Only CEO, CFO, COO, CMO vote (25% each)
+        PRIMARY_VOTERS = ["CEO", "CFO", "COO", "CMO"]
+        
+        # Collect votes from the 4 voting members
+        for role in PRIMARY_VOTERS:
+            if role not in role_configs:
+                logger.error(f"Role {role} not found in configs", extra={"proposal_id": proposal_id})
+                raise ConstitutionalError(f"Rule 8 Violation: Voting role '{role}' not configured")
+            
+            # Get deliberation response for context
+            deliberation_response = deliberation_responses.get(role, {}).get("response", "")
+            
+            # Build voting prompt
+            proposal = state["proposal"]
+            voting_prompt = (
+                f"You are the {role} on the AI governance board.\n\n"
+                f"Proposal ID: {proposal.get('id', 'UNKNOWN')}\n"
+                f"Title: {proposal.get('title', 'No title')}\n"
+                f"Description: {proposal.get('description', 'No description')}\n"
+                f"Financial Impact: ${proposal.get('financial_impact', 0):,.2f}\n\n"
+                f"Your Deliberation:\n{deliberation_response[:1000] if deliberation_response else 'No deliberation available'}\n\n"
+                f"All Board Deliberations:\n"
+            )
+            
+            # Include all deliberations for context
+            for other_role, other_response_data in deliberation_responses.items():
+                if isinstance(other_response_data, dict):
+                    other_response = other_response_data.get("response", "")
+                    if other_response:
+                        voting_prompt += f"\n{other_role}: {other_response[:500]}\n"
+            
+            voting_prompt += (
+                f"\n\nYou are a VOTING MEMBER with 25% voting weight.\n"
+                f"Review all deliberations and cast your vote.\n"
+                f"Respond with ONLY one word: APPROVE or REJECT\n"
+                f"Then provide a brief one-sentence reasoning for your vote."
+            )
+            
+            # Call LLM to get vote
+            provider = role_providers.get(role)
+            if not provider:
+                logger.error(f"No provider for {role}", extra={"proposal_id": proposal_id})
+                raise ConstitutionalError(f"Rule 8 Violation: No provider for voting role '{role}'")
+            
+            try:
+                vote_response = call_llm(
+                    provider=provider,
+                    prompt=voting_prompt,
+                    temperature=0.3,  # Lower temperature for voting decisions
+                    max_tokens=200
+                )
+                
+                # Parse vote from response
+                vote_response_upper = vote_response.strip().upper()
+                if "APPROVE" in vote_response_upper:
+                    vote_type = VoteType.APPROVE
+                elif "REJECT" in vote_response_upper:
+                    vote_type = VoteType.REJECT
+                else:
+                    # Default to approve if unclear (conservative)
+                    logger.warning(f"Unclear vote from {role}, defaulting to APPROVE", extra={"response": vote_response[:100]})
+                    vote_type = VoteType.APPROVE
+                
                 vote = Vote(
                     member_id=f"{role.lower()}_agent",
                     role=RoleType(role),
-                    vote_type=VoteType.APPROVE,  # Default to approve for testing
-                    weight=0.20,  # 5 members = 0.20 each (meets Rule 9: max 25%)
-                    rationale=f"{role} approves based on deliberation"
+                    vote_type=vote_type,
+                    weight=0.25,  # Each voting member has exactly 25% weight
+                    rationale=vote_response[:500]
                 )
                 votes_list.append(vote)
+                
+                logger.info(f"{role} voted: {vote_type.value}", extra={"proposal_id": proposal_id})
+                
+            except Exception as e:
+                logger.error(f"Failed to get vote from {role}: {e}", exc_info=True, extra={"proposal_id": proposal_id})
+                raise ConstitutionalError(f"Rule 8 Violation: Failed to collect vote from {role}. Error: {e}")
         
-        # Tally votes using real voting function
-        proposal_id = state["proposal"].get("id", "unknown")
+        # Check for VETOES from LEGAL and CISO (separate from voting)
+        VETO_ROLES = ["LEGAL", "CISO"]
+        veto_triggered = False
+        veto_role = None
+        
+        for role in VETO_ROLES:
+            if role not in role_configs:
+                continue
+            
+            deliberation_response = deliberation_responses.get(role, {}).get("response", "")
+            
+            # Build veto check prompt
+            veto_prompt = (
+                f"You are the {role} on the AI governance board.\n\n"
+                f"Proposal ID: {proposal.get('id', 'UNKNOWN')}\n"
+                f"Title: {proposal.get('title', 'No title')}\n"
+                f"Description: {proposal.get('description', 'No description')}\n\n"
+                f"Your Deliberation:\n{deliberation_response[:1000] if deliberation_response else 'No deliberation available'}\n\n"
+                f"You have VETO POWER. Review this proposal for:\n"
+            )
+            
+            if role == "LEGAL":
+                veto_prompt += (
+                    "- Legal violations\n"
+                    "- Constitutional violations\n"
+                    "- Regulatory compliance issues\n"
+                    "- Contractual risks\n\n"
+                )
+            elif role == "CISO":
+                veto_prompt += (
+                    "- Security risks\n"
+                    "- Data integrity issues\n"
+                    "- Privacy violations\n"
+                    "- Infrastructure safety concerns\n\n"
+                )
+            
+            veto_prompt += (
+                f"Respond with ONLY one word: VETO or NO_VETO\n"
+                f"If VETO, provide a brief one-sentence reason."
+            )
+            
+            provider = role_providers.get(role)
+            if provider:
+                try:
+                    veto_response = call_llm(
+                        provider=provider,
+                        prompt=veto_prompt,
+                        temperature=0.3,
+                        max_tokens=200
+                    )
+                    
+                    veto_response_upper = veto_response.strip().upper()
+                    if "VETO" in veto_response_upper and "NO_VETO" not in veto_response_upper:
+                        veto_triggered = True
+                        veto_role = role
+                        logger.warning(f"{role} exercised VETO", extra={"proposal_id": proposal_id, "reason": veto_response[:200]})
+                        
+                        # Log veto
+                        base_log_event(
+                            event_type="proposal_vetoed",
+                            data={
+                                "proposal_id": proposal_id,
+                                "veto_role": role,
+                                "reason": veto_response[:500]
+                            },
+                            metadata={"function": "conduct_voting"}
+                        )
+                        break  # Single veto stops the proposal
+                except Exception as e:
+                    logger.warning(f"Failed to check veto from {role}: {e}", extra={"proposal_id": proposal_id})
+        
+        # If vetoed, skip voting and set status to vetoed
+        if veto_triggered:
+            if isinstance(state["proposal"], dict):
+                state["proposal"]["status"] = ProposalStatus.VETOED.value
+            state["proposal_status"] = ProposalStatus.VETOED
+            state["needs_owner_approval"] = False
+            
+            # Create a minimal vote result for logging
+            vote_result = create_vote_result(
+                session_id=f"{proposal_id}-session",
+                proposal_id=proposal_id,
+                votes={}
+            )
+            state["voting_result"] = {
+                "session_id": vote_result.session_id,
+                "proposal_id": vote_result.proposal_id,
+                "votes": {},
+                "total_weight": 0.0,
+                "timestamp": vote_result.timestamp.isoformat(),
+                "decision": "vetoed",
+                "veto_triggered": True,
+                "veto_role": veto_role
+            }
+            
+            logger.info(f"Proposal {proposal_id} vetoed by {veto_role}")
+            return state
+        
+        # Tally votes from the 4 voting members
         vote_result = tally_votes(
             votes=votes_list,
             roles=role_configs,
             proposal_id=proposal_id
         )
+        
+        # Check if there's a 2-2 tie and need Chair tie-breaker
+        all_logs = get_recent_logs(limit=50)
+        vote_decision = None
+        chair_tiebreak_needed = False
+        
+        for log_entry in all_logs:
+            if (log_entry.get("type") == "board_vote_tallied" and 
+                log_entry.get("data", {}).get("proposal_id") == proposal_id):
+                vote_decision = log_entry.get("data", {}).get("decision", "unknown")
+                chair_tiebreak_needed = log_entry.get("data", {}).get("chair_tiebreak_used", False)
+                break
+        
+        # If no decision in logs, calculate from votes
+        if not vote_decision:
+            approve_count = sum(1 for v in votes_list if v.vote_type == VoteType.APPROVE)
+            reject_count = sum(1 for v in votes_list if v.vote_type == VoteType.REJECT)
+            
+            if approve_count == 2 and reject_count == 2:
+                # 2-2 tie - need Chair to break it
+                chair_tiebreak_needed = True
+                logger.info(f"2-2 tie detected, requesting Chair tie-breaker", extra={"proposal_id": proposal_id})
+                
+                # Get Chair's tie-breaking vote
+                deliberation_response = deliberation_responses.get("CHAIR", {}).get("response", "")
+                chair_prompt = (
+                    f"You are the CHAIR of the AI governance board.\n\n"
+                    f"Proposal ID: {proposal.get('id', 'UNKNOWN')}\n"
+                    f"Title: {proposal.get('title', 'No title')}\n"
+                    f"Description: {proposal.get('description', 'No description')}\n\n"
+                    f"The four voting members (CEO, CFO, COO, CMO) have split 2-2.\n"
+                    f"Your vote will break the tie and determine the outcome.\n\n"
+                    f"All Deliberations:\n"
+                )
+                
+                for other_role, other_response_data in deliberation_responses.items():
+                    if isinstance(other_response_data, dict):
+                        other_response = other_response_data.get("response", "")
+                        if other_response:
+                            chair_prompt += f"\n{other_role}: {other_response[:500]}\n"
+                
+                chair_prompt += (
+                    f"\n\nVote Count: 2 APPROVE, 2 REJECT\n"
+                    f"Respond with ONLY one word: APPROVE or REJECT\n"
+                    f"Then provide brief reasoning for your tie-breaking decision."
+                )
+                
+                provider = role_providers.get("CHAIR")
+                if provider:
+                    try:
+                        chair_response = call_llm(
+                            provider=provider,
+                            prompt=chair_prompt,
+                            temperature=0.3,
+                            max_tokens=200
+                        )
+                        
+                        chair_response_upper = chair_response.strip().upper()
+                        if "APPROVE" in chair_response_upper:
+                            vote_decision = "approved"
+                        else:
+                            vote_decision = "rejected"
+                        
+                        logger.info(f"Chair tie-breaker: {vote_decision}", extra={"proposal_id": proposal_id})
+                        
+                        # Add Chair vote to result for logging
+                        chair_vote = Vote(
+                            member_id="chair_agent",
+                            role=RoleType.CHAIR,
+                            vote_type=VoteType.APPROVE if vote_decision == "approved" else VoteType.REJECT,
+                            weight=0.0,  # Chair has 0% weight in regular voting
+                            rationale=chair_response[:500]
+                        )
+                        votes_list.append(chair_vote)
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to get Chair tie-breaker: {e}", exc_info=True, extra={"proposal_id": proposal_id})
+                        raise ConstitutionalError(f"Rule 9 Violation: 2-2 tie requires Chair vote. Error: {e}")
+                else:
+                    raise ConstitutionalError("Rule 8 Violation: No provider for CHAIR role")
+            elif approve_count > reject_count:
+                vote_decision = "approved"
+            else:
+                vote_decision = "rejected"
         
         # Store vote result in state
         state["voting_result"] = {
@@ -481,21 +756,10 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
             "proposal_id": vote_result.proposal_id,
             "votes": vote_result.votes,
             "total_weight": vote_result.total_weight,
-            "timestamp": vote_result.timestamp.isoformat()
+            "timestamp": vote_result.timestamp.isoformat(),
+            "decision": vote_decision,
+            "chair_tiebreak_used": chair_tiebreak_needed
         }
-        
-        # Check vote decision from logs (tally_votes logs the decision)
-        all_logs = get_recent_logs(limit=50)
-        vote_decision = None
-        for log_entry in all_logs:
-            if (log_entry.get("type") == "board_vote_tallied" and 
-                log_entry.get("data", {}).get("proposal_id") == proposal_id):
-                vote_decision = log_entry.get("data", {}).get("decision", "unknown")
-                break
-        
-        # If no decision in logs, infer from vote result (simplified - assume approved if no veto)
-        if not vote_decision:
-            vote_decision = "approved"  # Default for testing
         
         # Update proposal status based on vote result
         if vote_decision == "approved":
@@ -511,7 +775,8 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
                 data={
                     "proposal_id": proposal_id,
                     "board_approved": True,
-                    "status": ProposalStatus.PENDING_APPROVAL.value
+                    "status": ProposalStatus.PENDING_APPROVAL.value,
+                    "chair_tiebreak_used": chair_tiebreak_needed
                 },
                 metadata={"function": "conduct_voting"}
             )
@@ -1114,7 +1379,8 @@ def _build_role_deliberation_prompt(role: str, context: Dict[str, Any]) -> str:
         f"- {precedent.get('summary', str(precedent))}" for precedent in precedents
     ) or "- None recorded"
 
-    return (
+    # Base prompt components
+    base_prompt = (
         f"You are serving as the {role} on the AI governance board.\n"
         f"Proposal ID: {proposal.get('id', 'UNKNOWN')}\n"
         f"Title: {proposal.get('title', 'No title provided')}\n"
@@ -1124,10 +1390,61 @@ def _build_role_deliberation_prompt(role: str, context: Dict[str, Any]) -> str:
         f"Recent Board Activity:\n{recent_activity or 'No recent activity recorded.'}\n\n"
         f"Relevant Precedents:\n{precedent_summary}\n\n"
         f"Trend Analysis:\n{trend_analysis or 'No trend analysis available.'}\n\n"
-        f"Provide a detailed deliberation from the perspective of the {role}. "
-        f"Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. "
-        f"Recommend approve, reject, abstain, or veto (if empowered) and explain your reasoning."
     )
+    
+    # Role-specific instructions
+    if role == "CHAIR":
+        role_instructions = (
+            f"Your Role as CHAIR:\n"
+            f"- You are the facilitator and moderator of the board\n"
+            f"- Frame the strategic question or proposal clearly\n"
+            f"- Set the tone for constructive discussion\n"
+            f"- Highlight key areas that need exploration\n"
+            f"- Ensure all critical perspectives are considered\n"
+            f"- Keep discussion focused and productive\n"
+            f"- Synthesize key points of consensus and disagreement\n"
+            f"- Provide a balanced summary of the deliberation\n\n"
+            f"IMPORTANT: You do NOT vote in regular voting (only CEO, CFO, COO, CMO vote).\n"
+            f"You only vote if there's a 2-2 tie between the four voting members.\n\n"
+            f"Provide a substantial, detailed deliberation that:\n"
+            f"1. Frames the strategic question clearly\n"
+            f"2. Identifies key areas for board consideration\n"
+            f"3. Highlights potential risks and opportunities\n"
+            f"4. Facilitates productive discussion\n"
+            f"5. Provides a balanced perspective on the proposal\n\n"
+            f"Your response must be at least 200 words and provide meaningful strategic guidance."
+        )
+    elif role == "SECRETARY":
+        role_instructions = (
+            f"Your Role as SECRETARY:\n"
+            f"- You document proceedings and maintain records\n"
+            f"- You do NOT vote (documentation only)\n"
+            f"- Provide a procedural summary of the deliberation\n"
+            f"- Document key points, concerns, and recommendations\n\n"
+            f"Provide a clear, structured summary of the deliberation process and key points discussed."
+        )
+    elif role in ["LEGAL", "CISO"]:
+        role_instructions = (
+            f"Your Role as {role}:\n"
+            f"- You have VETO POWER (separate from regular voting)\n"
+            f"- You do NOT cast regular votes (only CEO, CFO, COO, CMO vote)\n"
+            f"- Review for {'legal/constitutional violations' if role == 'LEGAL' else 'security/data risks'}\n"
+            f"- Exercise veto if you identify critical issues\n\n"
+            f"Provide a detailed analysis focusing on {'legal, regulatory, and constitutional compliance' if role == 'LEGAL' else 'security, data integrity, and privacy concerns'}."
+        )
+    else:
+        # For voting members (CEO, CFO, COO, CMO)
+        role_instructions = (
+            f"Your Role as {role}:\n"
+            f"- You are a VOTING MEMBER with 25% voting weight\n"
+            f"- You will vote in the voting phase\n"
+            f"- Focus on considerations relevant to your role\n\n"
+            f"Provide a detailed deliberation from the perspective of the {role}. "
+            f"Focus on financial, legal, operational, marketing, and risk considerations relevant to your role. "
+            f"Recommend approve, reject, or abstain and explain your reasoning."
+        )
+    
+    return base_prompt + role_instructions
 
 
 def _sanitize_identifier(value: str) -> str:
