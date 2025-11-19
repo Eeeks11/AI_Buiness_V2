@@ -632,29 +632,50 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
                 except Exception as e:
                     logger.warning(f"Failed to check veto from {role}: {e}", extra={"proposal_id": proposal_id})
         
-        # If vetoed, skip voting and set status to vetoed
+        # If vetoed, stop here - veto overrides all votes (don't tally to avoid logging wrong decision)
         if veto_triggered:
+            # Create vote result for audit trail (includes collected votes but decision is vetoed)
+            votes_dict = {v.member_id: v.weight for v in votes_list} if votes_list else {}
+            vote_result = create_vote_result(
+                session_id=f"{proposal_id}-session",
+                proposal_id=proposal_id,
+                votes=votes_dict
+            )
+            
+            state["voting_result"] = {
+                "session_id": vote_result.session_id,
+                "proposal_id": vote_result.proposal_id,
+                "votes": vote_result.votes,
+                "total_weight": vote_result.total_weight,
+                "timestamp": vote_result.timestamp.isoformat(),
+                "decision": "vetoed",
+                "veto_triggered": True,
+                "veto_role": veto_role,
+                "approve_count": sum(1 for v in votes_list if v.vote_type == VoteType.APPROVE) if votes_list else 0,
+                "reject_count": sum(1 for v in votes_list if v.vote_type == VoteType.REJECT) if votes_list else 0
+            }
+            
             if isinstance(state["proposal"], dict):
                 state["proposal"]["status"] = ProposalStatus.VETOED.value
             state["proposal_status"] = ProposalStatus.VETOED
             state["needs_owner_approval"] = False
             
-            # Create a minimal vote result for logging
-            vote_result = create_vote_result(
-                session_id=f"{proposal_id}-session",
-                proposal_id=proposal_id,
-                votes={}
+            # Log veto decision (separate from vote tally log)
+            base_log_event(
+                event_type="board_vote_tallied",
+                data={
+                    "proposal_id": proposal_id,
+                    "decision": "vetoed",
+                    "reason": f"{veto_role} veto",
+                    "veto_triggered": True,
+                    "veto_role": veto_role,
+                    "approve_count": state["voting_result"]["approve_count"],
+                    "reject_count": state["voting_result"]["reject_count"],
+                    "approve_weight": state["voting_result"]["approve_count"] * 0.25,
+                    "reject_weight": state["voting_result"]["reject_count"] * 0.25
+                },
+                metadata={"function": "conduct_voting"}
             )
-            state["voting_result"] = {
-                "session_id": vote_result.session_id,
-                "proposal_id": vote_result.proposal_id,
-                "votes": {},
-                "total_weight": 0.0,
-                "timestamp": vote_result.timestamp.isoformat(),
-                "decision": "vetoed",
-                "veto_triggered": True,
-                "veto_role": veto_role
-            }
             
             logger.info(f"Proposal {proposal_id} vetoed by {veto_role}")
             return state
