@@ -149,7 +149,7 @@ def check_model_health(provider: str, timeout_seconds: float = 5.0) -> ModelHeal
                 messages=[
                     {"role": "user", "content": "test"}
                 ],
-                max_tokens=10,  # Increased from 5 to avoid "max_tokens reached" errors
+                max_tokens=16,  # Minimum required by some providers (e.g., OpenAI), increased from 10
                 timeout=timeout_seconds
             )
             

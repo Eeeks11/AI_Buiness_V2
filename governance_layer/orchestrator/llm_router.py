@@ -71,6 +71,7 @@ def call_llm(
     Before calling LLM:
     - Logs LLM call attempt (Rule 6)
     - Validates constitutional compliance (Rule 6)
+    - Ensures max_tokens meets minimum requirements (≥16)
     
     Uses LiteLLM's completion() function with retry logic (3 attempts with exponential backoff).
     After successful call, logs response length.
@@ -79,22 +80,22 @@ def call_llm(
         provider: Provider identifier (e.g., "openai/<model>", "anthropic/<model>")
         prompt: Prompt text to send to LLM
         temperature: Temperature parameter (default: 0.7)
-        max_tokens: Maximum tokens in response (default: 2000)
+        max_tokens: Maximum tokens in response (default: 2000, minimum: 16)
         
     Returns:
         Response text from LLM
         
     Raises:
         ConstitutionalError: If constitutional validation fails or LLM call fails after retries
-        
-    Example:
-        >>> response = call_llm(
-        ...     provider="openai/<model>",
-        ...     prompt="Analyze this proposal...",
-        ...     temperature=0.7
-        ... )
-        >>> assert len(response) > 0
     """
+    # Ensure max_tokens meets minimum requirements (some providers require ≥16)
+    if max_tokens < 16:
+        logger.warning(
+            f"max_tokens {max_tokens} below minimum (16), increasing to 16",
+            extra={"provider": provider, "requested_max_tokens": max_tokens}
+        )
+        max_tokens = 16
+    
     logger.info(f"Calling LLM: {provider}", extra={"provider": provider, "prompt_length": len(prompt)})
     effective_temperature = _coerce_temperature(provider, temperature)
     
@@ -187,19 +188,52 @@ def call_llm(
             return response_text
             
         except Exception as e:
+            # Check for rate limit errors - use longer backoff
+            is_rate_limit = (
+                "RateLimitError" in str(type(e)) or 
+                "rate_limit" in str(e).lower() or
+                "rate limit" in str(e).lower() or
+                "capacity exceeded" in str(e).lower() or
+                "service_tier_capacity_exceeded" in str(e).lower()
+            )
+            
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt)  # Exponential backoff
-                logger.warning(
-                    f"LLM call failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
-                    extra={"provider": provider, "attempt": attempt + 1}
-                )
+                # Use longer backoff for rate limits
+                if is_rate_limit:
+                    delay = base_delay * (3 ** attempt)  # Longer exponential backoff for rate limits (1s, 3s, 9s)
+                    logger.warning(
+                        f"Rate limit error (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
+                        extra={"provider": provider, "attempt": attempt + 1, "error_type": "rate_limit"}
+                    )
+                else:
+                    delay = base_delay * (2 ** attempt)  # Standard exponential backoff (1s, 2s, 4s)
+                    logger.warning(
+                        f"LLM call failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
+                        extra={"provider": provider, "attempt": attempt + 1}
+                    )
                 time.sleep(delay)
             else:
                 # Final attempt failed
+                error_type = "rate_limit" if is_rate_limit else "unknown_error"
+                error_message = str(e)
+                
+                # Provide more helpful error messages
+                if is_rate_limit:
+                    error_message = (
+                        f"Rate limit exceeded for provider {provider}. "
+                        f"This may be due to service tier capacity limits. "
+                        f"Consider: 1) Waiting before retrying, 2) Using a different model, "
+                        f"3) Checking provider account limits. Original error: {e}"
+                    )
+                
                 logger.error(
-                    f"LLM call failed after {max_retries} attempts: {e}",
+                    f"LLM call failed after {max_retries} attempts: {error_message}",
                     exc_info=True,
-                    extra={"provider": provider}
+                    extra={
+                        "provider": provider,
+                        "error_type": error_type,
+                        "is_rate_limit": is_rate_limit
+                    }
                 )
                 
                 # Log failed LLM call (Rule 6)
@@ -208,7 +242,9 @@ def call_llm(
                         event_type="llm_call_failure",
                         data={
                             "provider": provider,
-                            "error": str(e),
+                            "error": error_message,
+                            "error_type": error_type,
+                            "is_rate_limit": is_rate_limit,
                             "attempts": max_retries
                         },
                         metadata={"function": "call_llm"}
@@ -218,7 +254,7 @@ def call_llm(
                 
                 raise ConstitutionalError(
                     f"Rule 6 Violation: LLM call failed after {max_retries} attempts. "
-                    f"Provider: {provider}, Error: {e}"
+                    f"Provider: {provider}, Error Type: {error_type}, Error: {error_message}"
                 )
     
     # Should never reach here, but just in case
