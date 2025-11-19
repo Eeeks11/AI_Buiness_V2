@@ -314,19 +314,29 @@ def _pin_pending_batches(batch_size: int) -> None:
         start_index = total_entries_pinned
         end_index = start_index + batch_size
 
+        # Safe bounds checking: ensure end_index doesn't exceed array length
         if end_index > len(entries):
-            logger.warning(
-                "Batch end index exceeds available entries",
-                extra={
-                    "batch_size": batch_size,
-                    "entries_available": len(entries),
-                    "start_index": start_index,
-                    "end_index": end_index,
-                },
-            )
-            break
+            # Adjust end_index to available entries
+            end_index = len(entries)
+            if start_index >= end_index:
+                # No more entries to process
+                logger.debug(
+                    "No more entries to batch",
+                    extra={
+                        "batch_size": batch_size,
+                        "entries_available": len(entries),
+                        "start_index": start_index,
+                        "end_index": end_index,
+                    },
+                )
+                break
 
+        # Safe slicing with bounds-checked end_index
         batch_entries = entries[start_index:end_index]
+        
+        # If batch is empty, break
+        if not batch_entries:
+            break
         manifest_entries = _build_manifest_entries(batch_entries)
 
         manifest = {

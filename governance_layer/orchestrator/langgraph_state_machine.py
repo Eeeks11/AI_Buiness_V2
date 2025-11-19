@@ -535,6 +535,46 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
                     max_tokens=200
                 )
                 
+                # Validate vote response is not None or empty
+                if not vote_response or not vote_response.strip():
+                    error_msg = f"Voting failed - {role} returned empty or None response"
+                    logger.error(error_msg, extra={
+                        "proposal_id": proposal_id,
+                        "role": role,
+                        "provider": provider,
+                        "prompt_length": len(voting_prompt)
+                    })
+                    
+                    # Set proposal status to voting_failed and halt governance cycle
+                    if isinstance(state["proposal"], dict):
+                        state["proposal"]["status"] = ProposalStatus.VOTING_FAILED.value
+                        state["proposal"]["voting_failure_details"] = {
+                            "failed_role": role,
+                            "error": "Empty or None response from LLM",
+                            "provider": provider,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    state["proposal_status"] = ProposalStatus.VOTING_FAILED
+                    state["needs_owner_approval"] = False
+                    
+                    # Log voting failure
+                    base_log_event(
+                        event_type="voting_failed",
+                        data={
+                            "proposal_id": proposal_id,
+                            "failed_role": role,
+                            "error": "Empty or None response from LLM",
+                            "provider": provider
+                        },
+                        metadata={"function": "conduct_voting"}
+                    )
+                    
+                    raise ConstitutionalError(
+                        f"Governance cycle halted - voting member {role} failed to vote. "
+                        f"Received empty or None response. Each voting member has 25% weight, "
+                        f"so missing any member invalidates the vote. Check logs for details."
+                    )
+                
                 # Parse vote from response
                 vote_response_upper = vote_response.strip().upper()
                 if "APPROVE" in vote_response_upper:
@@ -542,9 +582,45 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
                 elif "REJECT" in vote_response_upper:
                     vote_type = VoteType.REJECT
                 else:
-                    # Default to approve if unclear (conservative)
-                    logger.warning(f"Unclear vote from {role}, defaulting to APPROVE", extra={"response": vote_response[:100]})
-                    vote_type = VoteType.APPROVE
+                    # Unclear vote - this is also a failure, not a default
+                    error_msg = f"Voting failed - {role} returned unparseable vote response"
+                    logger.error(error_msg, extra={
+                        "proposal_id": proposal_id,
+                        "role": role,
+                        "provider": provider,
+                        "response": vote_response[:200]
+                    })
+                    
+                    # Set proposal status to voting_failed and halt governance cycle
+                    if isinstance(state["proposal"], dict):
+                        state["proposal"]["status"] = ProposalStatus.VOTING_FAILED.value
+                        state["proposal"]["voting_failure_details"] = {
+                            "failed_role": role,
+                            "error": f"Unparseable vote response: {vote_response[:200]}",
+                            "provider": provider,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    state["proposal_status"] = ProposalStatus.VOTING_FAILED
+                    state["needs_owner_approval"] = False
+                    
+                    # Log voting failure
+                    base_log_event(
+                        event_type="voting_failed",
+                        data={
+                            "proposal_id": proposal_id,
+                            "failed_role": role,
+                            "error": f"Unparseable vote response: {vote_response[:200]}",
+                            "provider": provider,
+                            "response_preview": vote_response[:200]
+                        },
+                        metadata={"function": "conduct_voting"}
+                    )
+                    
+                    raise ConstitutionalError(
+                        f"Governance cycle halted - voting member {role} failed to vote. "
+                        f"Response was unparseable: '{vote_response[:100]}'. "
+                        f"Each voting member has 25% weight, so missing any member invalidates the vote."
+                    )
                 
                 vote = Vote(
                     member_id=f"{role.lower()}_agent",
@@ -557,9 +633,47 @@ def conduct_voting(state: GovernanceState) -> GovernanceState:
                 
                 logger.info(f"{role} voted: {vote_type.value}", extra={"proposal_id": proposal_id})
                 
+            except ConstitutionalError:
+                # Re-raise ConstitutionalError (already handled above)
+                raise
             except Exception as e:
-                logger.error(f"Failed to get vote from {role}: {e}", exc_info=True, extra={"proposal_id": proposal_id})
-                raise ConstitutionalError(f"Rule 8 Violation: Failed to collect vote from {role}. Error: {e}")
+                # Any other exception during voting
+                error_msg = f"Voting failed - {role} could not provide vote"
+                logger.error(error_msg, exc_info=True, extra={
+                    "proposal_id": proposal_id,
+                    "role": role,
+                    "provider": provider,
+                    "error": str(e)
+                })
+                
+                # Set proposal status to voting_failed and halt governance cycle
+                if isinstance(state["proposal"], dict):
+                    state["proposal"]["status"] = ProposalStatus.VOTING_FAILED.value
+                    state["proposal"]["voting_failure_details"] = {
+                        "failed_role": role,
+                        "error": str(e),
+                        "provider": provider,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                state["proposal_status"] = ProposalStatus.VOTING_FAILED
+                state["needs_owner_approval"] = False
+                
+                # Log voting failure
+                base_log_event(
+                    event_type="voting_failed",
+                    data={
+                        "proposal_id": proposal_id,
+                        "failed_role": role,
+                        "error": str(e),
+                        "provider": provider
+                    },
+                    metadata={"function": "conduct_voting"}
+                )
+                
+                raise ConstitutionalError(
+                    f"Governance cycle halted - voting member {role} failed to vote. "
+                    f"Error: {e}. Each voting member has 25% weight, so missing any member invalidates the vote."
+                )
         
         # Check for VETOES from LEGAL and CISO (separate from voting)
         VETO_ROLES = ["LEGAL", "CISO"]

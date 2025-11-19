@@ -204,8 +204,68 @@ def summarize_recent_activity(events: List[Dict]) -> str:
         logger.error(f"Failed to log LLM call attempt: {e}", exc_info=True)
         # Continue despite logging failure
     
-    # Prepare prompt
+    # Token counting and truncation to prevent token overflow
+    # Rough estimation: ~4 characters per token for English text
+    # Target: Keep total request under 25,000 tokens (100,000 chars)
+    # Reserve ~5,000 tokens (20,000 chars) for prompt template and output
+    # So events should be limited to ~20,000 tokens (80,000 chars)
+    MAX_EVENT_CHARS = 80000  # ~20,000 tokens
+    PROMPT_TEMPLATE_CHARS = 200  # Approximate size of prompt template
+    
+    # Convert events to JSON and check size
     events_text = json.dumps(events, indent=2, ensure_ascii=False)
+    total_chars = len(events_text) + PROMPT_TEMPLATE_CHARS
+    estimated_tokens = total_chars / 4
+    
+    original_event_count = len(events)
+    
+    # If exceeding limits, truncate to most recent events
+    if len(events_text) > MAX_EVENT_CHARS:
+        logger.warning(
+            f"Event summary exceeds token limit ({estimated_tokens:.0f} tokens, {total_chars} chars). "
+            f"Truncating to most recent events.",
+            extra={
+                "original_event_count": original_event_count,
+                "estimated_tokens": estimated_tokens,
+                "total_chars": total_chars
+            }
+        )
+        
+        # Truncate events: keep most recent events that fit
+        truncated_events = []
+        current_size = 0
+        
+        # Iterate backwards (most recent first) to keep latest events
+        for event in reversed(events):
+            event_json = json.dumps(event, indent=2, ensure_ascii=False)
+            if current_size + len(event_json) + PROMPT_TEMPLATE_CHARS <= MAX_EVENT_CHARS:
+                truncated_events.insert(0, event)  # Insert at beginning to maintain order
+                current_size += len(event_json)
+            else:
+                break
+        
+        events = truncated_events
+        events_text = json.dumps(events, indent=2, ensure_ascii=False)
+        
+        logger.info(
+            f"Truncated events from {original_event_count} to {len(events)} events "
+            f"({len(events_text)} chars, ~{len(events_text) / 4:.0f} tokens)",
+            extra={
+                "original_count": original_event_count,
+                "truncated_count": len(events),
+                "final_chars": len(events_text),
+                "final_estimated_tokens": len(events_text) / 4
+            }
+        )
+    
+    # Log token counts for monitoring
+    final_estimated_tokens = (len(events_text) + PROMPT_TEMPLATE_CHARS) / 4
+    logger.debug(
+        f"Memory summarization token estimate: ~{final_estimated_tokens:.0f} tokens "
+        f"({len(events_text) + PROMPT_TEMPLATE_CHARS} chars) for {len(events)} events"
+    )
+    
+    # Prepare prompt
     prompt = (
         f"Summarize these board activities: {events_text}\n\n"
         f"Focus on:\n"

@@ -90,6 +90,15 @@ def proposal_card(proposal: Mapping[str, Any]) -> None:
                     st.metric("Status", "❌ REJECTED", status_display)
                 elif status == ProposalStatus.VETOED.value:
                     st.metric("Status", "🚫 VETOED", status_display)
+                elif status == ProposalStatus.VOTING_FAILED.value:
+                    st.metric("Status", "⚠️ VOTING FAILED", status_display)
+                    # Display failure details if available
+                    failure_details = proposal.get("voting_failure_details", {})
+                    if failure_details:
+                        failed_role = failure_details.get("failed_role", "Unknown")
+                        error = failure_details.get("error", "Unknown error")
+                        st.caption(f"⚠️ Failed role: {failed_role}")
+                        st.caption(f"Error: {error[:200]}")
                 elif status == ProposalStatus.VOTING.value:
                     st.metric("Status", "🗳️ VOTING", status_display)
                 elif status == ProposalStatus.DELIBERATION.value:

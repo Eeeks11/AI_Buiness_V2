@@ -169,7 +169,41 @@ def call_llm(
                 max_tokens=max_tokens
             )
             
-            response_text = response.choices[0].message.content.strip()
+            # Robust error handling: Check for None response before processing
+            if not response or not response.choices or len(response.choices) == 0:
+                error_msg = f"LLM call returned empty response object. Provider: {provider}, Model: {model_name}, Attempt: {attempt + 1}"
+                logger.error(error_msg, extra={
+                    "provider": provider,
+                    "model": model_name,
+                    "attempt": attempt + 1,
+                    "response_object": str(response) if response else "None"
+                })
+                raise ConstitutionalError(error_msg)
+            
+            response_content = response.choices[0].message.content
+            if response_content is None:
+                # Log full response object and prompt for debugging
+                error_msg = (
+                    f"LLM call returned None content. Provider: {provider}, Model: {model_name}, "
+                    f"Attempt: {attempt + 1}. This indicates the model failed to generate a response."
+                )
+                logger.error(error_msg, extra={
+                    "provider": provider,
+                    "model": model_name,
+                    "attempt": attempt + 1,
+                    "prompt_length": len(prompt),
+                    "prompt_preview": prompt[:500] if len(prompt) > 500 else prompt,
+                    "response_object": str(response),
+                    "response_choices_count": len(response.choices) if response.choices else 0,
+                    "message_object": str(response.choices[0].message) if response.choices else "N/A"
+                })
+                raise ConstitutionalError(
+                    f"Governance cycle halted - {provider} model returned None response. "
+                    f"This may indicate model failure, rate limiting, or context overflow. "
+                    f"Check logs for full details."
+                )
+            
+            response_text = response_content.strip()
             
             # Log successful LLM call (Rule 6)
             try:

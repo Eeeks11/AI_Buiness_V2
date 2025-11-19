@@ -50,6 +50,7 @@ class ProposalStatus(str, Enum):
     DRAFT = "draft"
     DELIBERATION = "deliberation"
     VOTING = "voting"
+    VOTING_FAILED = "voting_failed"
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"

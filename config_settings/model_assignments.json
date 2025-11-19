@@ -22,9 +22,9 @@
   },
   "CMO": {
     "provider": "google",
-    "model": "gemini-2.5-flash",
+    "model": "gemini-2.5-pro",
     "temperature": 0.8,
-    "max_tokens": 2000,
+    "max_tokens": 4000,
     "description": "Chief Marketing Officer - Market positioning and growth strategy"
   },
   "CHAIR": {
