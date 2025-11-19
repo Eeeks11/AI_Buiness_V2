@@ -247,19 +247,14 @@ def main() -> None:
             # Get role-to-model mapping
             from governance_layer.governance.board import get_role_provider_map, get_model_assignment
             from governance_layer.roles.prompt_templates import load_role_configs
+            from governance_layer.orchestrator.model_health_check import check_model_health
             
             role_configs = load_role_configs()
             role_providers = get_role_provider_map()
             
-            # Get health summary (already checks all models efficiently)
-            health_summary = get_model_health_summary()
-            health_by_provider = {}
-            # Map health status by provider identifier
-            for model_info in health_summary.get("models", []):
-                provider = model_info.get("provider", "")
-                is_healthy = model_info.get("is_healthy", False)
-                # Store health status by provider identifier (e.g., "openai/gpt-4o")
-                health_by_provider[provider] = is_healthy
+            # Check health for each role's specific provider (more accurate than matching from summary)
+            # Use a cache to avoid checking the same provider multiple times
+            provider_health_cache = {}
             
             # Display each role with model and health indicator
             for role in ["CHAIR", "CEO", "CFO", "COO", "CMO", "LEGAL", "CISO", "SECRETARY"]:
@@ -300,9 +295,22 @@ def main() -> None:
                     else:
                         display_model = provider
                 
-                # Get health status from health summary
+                # Get health status for this role's specific provider
                 provider = role_providers.get(role, "")
-                is_healthy = health_by_provider.get(provider, False)
+                if provider:
+                    # Check cache first
+                    if provider not in provider_health_cache:
+                        try:
+                            # Quick health check with shorter timeout for sidebar
+                            health_status = check_model_health(provider, timeout_seconds=2.0)
+                            provider_health_cache[provider] = health_status.is_healthy
+                        except Exception as e:
+                            logger.debug(f"Health check failed for {role} ({provider}): {e}")
+                            provider_health_cache[provider] = False
+                    is_healthy = provider_health_cache[provider]
+                else:
+                    is_healthy = False
+                
                 health_indicator = "✓" if is_healthy else "✗"
                 
                 # Display role with model and health
@@ -627,16 +635,36 @@ def main() -> None:
             # Detailed model status
             st.subheader("Model Details")
             
+            # Map providers to roles for display
+            from governance_layer.governance.board import get_role_provider_map, get_model_assignment
+            from governance_layer.roles.prompt_templates import load_role_configs
+            role_providers = get_role_provider_map()
+            role_configs = load_role_configs()
+            
+            # Build provider -> roles mapping
+            provider_to_roles = {}
+            for role, provider in role_providers.items():
+                if provider not in provider_to_roles:
+                    provider_to_roles[provider] = []
+                provider_to_roles[provider].append(role)
+            
             if health_summary["models"]:
                 for model in health_summary["models"]:
+                    provider = model.get("provider", "")
+                    roles_using = provider_to_roles.get(provider, [])
+                    
                     with st.container():
                         col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                         
                         with col1:
                             status_icon = "✅" if model["is_healthy"] else "❌"
-                            st.write(f"{status_icon} **{model['provider']}**")
+                            st.write(f"{status_icon} **{provider}**")
                             if model.get("model_name") and model["model_name"] != "unknown":
                                 st.caption(f"Model: {model['model_name']}")
+                            # Show which roles use this provider
+                            if roles_using:
+                                role_names = [role_configs.get(r, {}).get("name", r) for r in roles_using]
+                                st.caption(f"Used by: {', '.join(role_names)}")
                         
                         with col2:
                             if model["is_healthy"]:

@@ -342,6 +342,8 @@ def get_model_health_summary() -> Dict[str, Any]:
     """
     Get a summary of model health status for dashboard display.
     
+    Checks health for all unique providers used by board roles to ensure accuracy.
+    
     Returns:
         Dictionary with health summary including:
         - total_models: Total number of models
@@ -350,8 +352,18 @@ def get_model_health_summary() -> Dict[str, Any]:
         - models: List of model status dictionaries
         - can_run_governance: Whether governance can proceed
     """
-    settings = get_settings()
-    active_models = settings.active_models
+    # Get all unique providers from role assignments (more accurate than just active_models)
+    try:
+        from governance_layer.governance.board import get_role_provider_map
+        role_providers = get_role_provider_map()
+        # Get unique providers from roles
+        unique_providers = set(role_providers.values())
+    except Exception as e:
+        logger.warning(f"Failed to get role providers, falling back to active_models: {e}")
+        # Fallback to active_models approach
+        settings = get_settings()
+        active_models = settings.active_models
+        unique_providers = {settings.provider_model_identifier(model) for model in active_models}
     
     # Quick health check (longer timeout for dashboard to reduce timeout errors)
     # Suppress verbose LiteLLM errors during health check
@@ -360,8 +372,26 @@ def get_model_health_summary() -> Dict[str, Any]:
     original_level = litellm_logger.level
     litellm_logger.setLevel(logging.ERROR)  # Suppress INFO/WARNING messages
     
+    health_results: Dict[str, ModelHealthStatus] = {}
+    
     try:
-        health_results = check_all_models_health(timeout_seconds=10.0)  # Increased from 3.0 to 10.0
+        # Check health for each unique provider
+        for provider in unique_providers:
+            if not provider or provider == "Unknown":
+                continue
+            try:
+                health_status = check_model_health(provider, timeout_seconds=10.0)
+                health_results[provider] = health_status
+            except Exception as e:
+                logger.warning(f"Health check failed for {provider}: {e}")
+                # Create error status
+                health_results[provider] = ModelHealthStatus(
+                    provider=provider,
+                    model_name="unknown",
+                    is_healthy=False,
+                    error=f"Health check failed: {e}",
+                    error_type="health_check_error"
+                )
     finally:
         litellm_logger.setLevel(original_level)  # Restore original logging level
     
