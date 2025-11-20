@@ -15,6 +15,10 @@ import sys
 # Third-party
 import litellm
 
+# Suppress LiteLLM verbose info messages globally
+litellm_logger = logging.getLogger("LiteLLM")
+litellm_logger.setLevel(logging.ERROR)  # Only show errors, suppress INFO/WARNING
+
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
@@ -71,6 +75,7 @@ def call_llm(
     Before calling LLM:
     - Logs LLM call attempt (Rule 6)
     - Validates constitutional compliance (Rule 6)
+    - Ensures max_tokens meets minimum requirements (≥16)
     
     Uses LiteLLM's completion() function with retry logic (3 attempts with exponential backoff).
     After successful call, logs response length.
@@ -79,22 +84,22 @@ def call_llm(
         provider: Provider identifier (e.g., "openai/<model>", "anthropic/<model>")
         prompt: Prompt text to send to LLM
         temperature: Temperature parameter (default: 0.7)
-        max_tokens: Maximum tokens in response (default: 2000)
+        max_tokens: Maximum tokens in response (default: 2000, minimum: 16)
         
     Returns:
         Response text from LLM
         
     Raises:
         ConstitutionalError: If constitutional validation fails or LLM call fails after retries
-        
-    Example:
-        >>> response = call_llm(
-        ...     provider="openai/<model>",
-        ...     prompt="Analyze this proposal...",
-        ...     temperature=0.7
-        ... )
-        >>> assert len(response) > 0
     """
+    # Ensure max_tokens meets minimum requirements (some providers require ≥16)
+    if max_tokens < 16:
+        logger.warning(
+            f"max_tokens {max_tokens} below minimum (16), increasing to 16",
+            extra={"provider": provider, "requested_max_tokens": max_tokens}
+        )
+        max_tokens = 16
+    
     logger.info(f"Calling LLM: {provider}", extra={"provider": provider, "prompt_length": len(prompt)})
     effective_temperature = _coerce_temperature(provider, temperature)
     
@@ -164,7 +169,41 @@ def call_llm(
                 max_tokens=max_tokens
             )
             
-            response_text = response.choices[0].message.content.strip()
+            # Robust error handling: Check for None response before processing
+            if not response or not response.choices or len(response.choices) == 0:
+                error_msg = f"LLM call returned empty response object. Provider: {provider}, Model: {model_name}, Attempt: {attempt + 1}"
+                logger.error(error_msg, extra={
+                    "provider": provider,
+                    "model": model_name,
+                    "attempt": attempt + 1,
+                    "response_object": str(response) if response else "None"
+                })
+                raise ConstitutionalError(error_msg)
+            
+            response_content = response.choices[0].message.content
+            if response_content is None:
+                # Log full response object and prompt for debugging
+                error_msg = (
+                    f"LLM call returned None content. Provider: {provider}, Model: {model_name}, "
+                    f"Attempt: {attempt + 1}. This indicates the model failed to generate a response."
+                )
+                logger.error(error_msg, extra={
+                    "provider": provider,
+                    "model": model_name,
+                    "attempt": attempt + 1,
+                    "prompt_length": len(prompt),
+                    "prompt_preview": prompt[:500] if len(prompt) > 500 else prompt,
+                    "response_object": str(response),
+                    "response_choices_count": len(response.choices) if response.choices else 0,
+                    "message_object": str(response.choices[0].message) if response.choices else "N/A"
+                })
+                raise ConstitutionalError(
+                    f"Governance cycle halted - {provider} model returned None response. "
+                    f"This may indicate model failure, rate limiting, or context overflow. "
+                    f"Check logs for full details."
+                )
+            
+            response_text = response_content.strip()
             
             # Log successful LLM call (Rule 6)
             try:
@@ -187,19 +226,52 @@ def call_llm(
             return response_text
             
         except Exception as e:
+            # Check for rate limit errors - use longer backoff
+            is_rate_limit = (
+                "RateLimitError" in str(type(e)) or 
+                "rate_limit" in str(e).lower() or
+                "rate limit" in str(e).lower() or
+                "capacity exceeded" in str(e).lower() or
+                "service_tier_capacity_exceeded" in str(e).lower()
+            )
+            
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt)  # Exponential backoff
-                logger.warning(
-                    f"LLM call failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
-                    extra={"provider": provider, "attempt": attempt + 1}
-                )
+                # Use longer backoff for rate limits
+                if is_rate_limit:
+                    delay = base_delay * (3 ** attempt)  # Longer exponential backoff for rate limits (1s, 3s, 9s)
+                    logger.warning(
+                        f"Rate limit error (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
+                        extra={"provider": provider, "attempt": attempt + 1, "error_type": "rate_limit"}
+                    )
+                else:
+                    delay = base_delay * (2 ** attempt)  # Standard exponential backoff (1s, 2s, 4s)
+                    logger.warning(
+                        f"LLM call failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}",
+                        extra={"provider": provider, "attempt": attempt + 1}
+                    )
                 time.sleep(delay)
             else:
                 # Final attempt failed
+                error_type = "rate_limit" if is_rate_limit else "unknown_error"
+                error_message = str(e)
+                
+                # Provide more helpful error messages
+                if is_rate_limit:
+                    error_message = (
+                        f"Rate limit exceeded for provider {provider}. "
+                        f"This may be due to service tier capacity limits. "
+                        f"Consider: 1) Waiting before retrying, 2) Using a different model, "
+                        f"3) Checking provider account limits. Original error: {e}"
+                    )
+                
                 logger.error(
-                    f"LLM call failed after {max_retries} attempts: {e}",
+                    f"LLM call failed after {max_retries} attempts: {error_message}",
                     exc_info=True,
-                    extra={"provider": provider}
+                    extra={
+                        "provider": provider,
+                        "error_type": error_type,
+                        "is_rate_limit": is_rate_limit
+                    }
                 )
                 
                 # Log failed LLM call (Rule 6)
@@ -208,7 +280,9 @@ def call_llm(
                         event_type="llm_call_failure",
                         data={
                             "provider": provider,
-                            "error": str(e),
+                            "error": error_message,
+                            "error_type": error_type,
+                            "is_rate_limit": is_rate_limit,
                             "attempts": max_retries
                         },
                         metadata={"function": "call_llm"}
@@ -218,7 +292,7 @@ def call_llm(
                 
                 raise ConstitutionalError(
                     f"Rule 6 Violation: LLM call failed after {max_retries} attempts. "
-                    f"Provider: {provider}, Error: {e}"
+                    f"Provider: {provider}, Error Type: {error_type}, Error: {error_message}"
                 )
     
     # Should never reach here, but just in case

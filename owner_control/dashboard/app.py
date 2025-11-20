@@ -76,24 +76,14 @@ def _create_proposal_form() -> Optional[dict]:
                 placeholder="Enter detailed proposal description",
                 height=150
             )
-            col1, col2 = st.columns(2)
-            with col1:
-                financial_impact = st.number_input(
-                    "Financial Impact ($)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=1000.0,
-                    format="%.2f"
-                )
-            with col2:
-                legal_risk = st.slider(
-                    "Legal Risk Score",
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=0.0,
-                    step=0.01,
-                    help="Legal risk assessment (0.0 = no risk, 1.0 = high risk)"
-                )
+            financial_impact = st.number_input(
+                "Financial Impact ($)",
+                min_value=0.0,
+                value=0.0,
+                step=1000.0,
+                format="%.2f",
+                help="Estimated financial impact of this proposal"
+            )
             
             submitted = st.form_submit_button("Submit Proposal", type="primary")
             
@@ -107,7 +97,7 @@ def _create_proposal_form() -> Optional[dict]:
                     "title": title,
                     "description": description,
                     "financial_impact": financial_impact,
-                    "legal_risk": legal_risk,
+                    "legal_risk": 0.0,  # Legal risk will be assessed by Legal role during deliberation
                     "status": ProposalStatus.DRAFT.value,
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat(),
@@ -122,7 +112,7 @@ def _create_proposal_form() -> Optional[dict]:
                         "title": proposal["title"],
                         "description": proposal["description"],
                         "financial_impact": proposal["financial_impact"],
-                        "legal_risk": proposal["legal_risk"],
+                        "legal_risk": proposal["legal_risk"],  # Will be 0.0, assessed later by Legal role
                         "status": proposal["status"]
                     }
                 )
@@ -243,8 +233,6 @@ def main() -> None:
         st.header("Owner Controls")
         st.metric("Authorization Mode", settings.owner_auth_mode)
         st.metric("Owner ID", settings.owner_id or "Not configured")
-        st.write("Active Models")
-        st.write(settings.active_models)
         st.toggle(
             "Owner Gate Enabled",
             value=settings.owner_gate_enabled,
@@ -253,22 +241,78 @@ def main() -> None:
         
         st.divider()
         
-        # Quick model health status
-        st.subheader("Model Health")
+        # Display Roles with Models and Health Status
+        st.subheader("Roles")
         try:
-            health_summary = get_model_health_summary()
-            healthy_count = health_summary["healthy_count"]
-            total_count = health_summary["total_models"]
-            can_run = health_summary["can_run_governance"]
+            # Get role-to-model mapping
+            from governance_layer.governance.board import get_role_provider_map, get_model_assignment
+            from governance_layer.roles.prompt_templates import load_role_configs
+            from governance_layer.orchestrator.model_health_check import get_model_health_summary
             
-            if can_run:
-                st.success(f"✅ {healthy_count}/{total_count} Healthy")
-            else:
-                st.error(f"❌ {healthy_count}/{total_count} Healthy")
-                st.caption("⚠️ Governance may fail")
+            role_configs = load_role_configs()
+            role_providers = get_role_provider_map()
+            
+            # Use the same health summary as Model Health tab for consistency
+            health_summary = get_model_health_summary()
+            
+            # Build provider -> health status map from health summary
+            provider_health_map = {}
+            for model_info in health_summary.get("models", []):
+                provider = model_info.get("provider", "")
+                is_healthy = model_info.get("is_healthy", False)
+                provider_health_map[provider] = is_healthy
+            
+            # Display each role with model and health indicator
+            for role in ["CHAIR", "CEO", "CFO", "COO", "CMO", "LEGAL", "CISO", "SECRETARY"]:
+                if role not in role_configs:
+                    continue
+                
+                # Get model name for display
+                model_assignment = get_model_assignment(role)
+                if model_assignment:
+                    model_name = model_assignment.get("model", "Unknown")
+                    # Format model name nicely - handle common patterns
+                    # e.g., "gpt-5.1" -> "GPT-5.1", "gpt-4o" -> "GPT-4o"
+                    parts = model_name.split("-")
+                    formatted_parts = []
+                    for part in parts:
+                        if part:
+                            # Capitalize common abbreviations (gpt, claude, gemini, etc.)
+                            if part.lower() in ["gpt", "claude", "gemini", "grok", "mistral"]:
+                                formatted_parts.append(part.upper())
+                            else:
+                                formatted_parts.append(part.capitalize())
+                    display_model = "-".join(formatted_parts)
+                else:
+                    # Fallback to provider identifier
+                    provider = role_providers.get(role, "Unknown")
+                    if "/" in provider:
+                        model_name = provider.split("/")[1]
+                        # Format similarly
+                        parts = model_name.split("-")
+                        formatted_parts = []
+                        for part in parts:
+                            if part:
+                                if part.lower() in ["gpt", "claude", "gemini", "grok", "mistral"]:
+                                    formatted_parts.append(part.upper())
+                                else:
+                                    formatted_parts.append(part.capitalize())
+                        display_model = "-".join(formatted_parts)
+                    else:
+                        display_model = provider
+                
+                # Get health status from health summary (same source as Model Health tab)
+                provider = role_providers.get(role, "")
+                is_healthy = provider_health_map.get(provider, False)
+                health_indicator = "✓" if is_healthy else "✗"
+                
+                # Display role with model and health
+                role_name = role_configs[role].get("name", role)
+                st.write(f"{role_name}: {display_model} {health_indicator}")
+                
         except Exception as e:
-            st.warning("⚠️ Health check unavailable")
-            logger.debug(f"Sidebar health check failed: {e}")
+            logger.warning(f"Failed to display roles with models: {e}")
+            st.warning("⚠️ Role model information unavailable")
         
         st.divider()
         
@@ -584,16 +628,36 @@ def main() -> None:
             # Detailed model status
             st.subheader("Model Details")
             
+            # Map providers to roles for display
+            from governance_layer.governance.board import get_role_provider_map, get_model_assignment
+            from governance_layer.roles.prompt_templates import load_role_configs
+            role_providers = get_role_provider_map()
+            role_configs = load_role_configs()
+            
+            # Build provider -> roles mapping
+            provider_to_roles = {}
+            for role, provider in role_providers.items():
+                if provider not in provider_to_roles:
+                    provider_to_roles[provider] = []
+                provider_to_roles[provider].append(role)
+            
             if health_summary["models"]:
                 for model in health_summary["models"]:
+                    provider = model.get("provider", "")
+                    roles_using = provider_to_roles.get(provider, [])
+                    
                     with st.container():
                         col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                         
                         with col1:
                             status_icon = "✅" if model["is_healthy"] else "❌"
-                            st.write(f"{status_icon} **{model['provider']}**")
+                            st.write(f"{status_icon} **{provider}**")
                             if model.get("model_name") and model["model_name"] != "unknown":
                                 st.caption(f"Model: {model['model_name']}")
+                            # Show which roles use this provider
+                            if roles_using:
+                                role_names = [role_configs.get(r, {}).get("name", r) for r in roles_using]
+                                st.caption(f"Used by: {', '.join(role_names)}")
                         
                         with col2:
                             if model["is_healthy"]:

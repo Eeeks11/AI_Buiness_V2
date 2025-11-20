@@ -1,0 +1,65 @@
+{
+  "CEO": {
+    "provider": "openai",
+    "model": "gpt-5.1",
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "description": "Chief Executive Officer - Strategic leadership and decision-making"
+  },
+  "CFO": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "temperature": 0.5,
+    "max_tokens": 2000,
+    "description": "Chief Financial Officer - Financial analysis and fiscal responsibility"
+  },
+  "COO": {
+    "provider": "xai",
+    "model": "grok-4-0709",
+    "temperature": 0.6,
+    "max_tokens": 2000,
+    "description": "Chief Operating Officer - Operational efficiency and execution"
+  },
+  "CMO": {
+    "provider": "google",
+    "model": "gemini-2.5-pro",
+    "temperature": 0.8,
+    "max_tokens": 4000,
+    "description": "Chief Marketing Officer - Market positioning and growth strategy"
+  },
+  "CHAIR": {
+    "provider": "openai",
+    "model": "gpt-5.1",
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "description": "Chair - Facilitates discussion and breaks ties"
+  },
+  "LEGAL": {
+    "provider": "mistral",
+    "model": "mistral-small-latest",
+    "temperature": 0.3,
+    "max_tokens": 2000,
+    "description": "General Counsel - Legal compliance and constitutional oversight"
+  },
+  "CISO": {
+    "provider": "xai",
+    "model": "grok-4-0709",
+    "temperature": 0.4,
+    "max_tokens": 2000,
+    "description": "Chief Information Security Officer - Security and data protection"
+  },
+  "SECRETARY": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "temperature": 0.5,
+    "max_tokens": 2000,
+    "description": "Board Secretary - Documentation and record-keeping"
+  },
+  "fallback": {
+    "provider": "openai",
+    "model": "gpt-5.1",
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "description": "Fallback configuration if role not specified"
+  }
+}

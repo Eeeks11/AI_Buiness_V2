@@ -224,6 +224,12 @@ def get_proposal_deliberations(proposal_id: str) -> Dict[str, Dict[str, Any]]:
                                 "response": response_data.get("response", ""),
                                 "captured_at": response_data.get("captured_at", ""),
                             }
+                
+                # Include iterative deliberation data if available
+                iterative_data = deliberation_data.get("iterative_deliberation", {})
+                if iterative_data:
+                    # Add iterative data to a special key
+                    deliberations["_iterative"] = iterative_data
         except Exception as exc:
             logger.warning(f"Failed to read deliberation file: {exc}")
     
@@ -313,16 +319,28 @@ def get_pending_owner_approvals() -> List[Dict[str, Any]]:
     
     pending = []
     for proposal in all_proposals:
+        proposal_id = proposal.get("id")
+        if not proposal_id:
+            continue
+        
+        # Enrich proposal with vote results and deliberations if not already present
+        if not proposal.get("vote_result"):
+            proposal["vote_result"] = get_proposal_votes(proposal_id)
+        if not proposal.get("deliberation_responses"):
+            proposal["deliberation_responses"] = get_proposal_deliberations(proposal_id)
+        
         status = proposal.get("status", "")
         vote_result = proposal.get("vote_result")
         
-        # Check if status is pending_approval (new status)
+        # Primary check: status is pending_approval (correct flow)
         if status == ProposalStatus.PENDING_APPROVAL.value:
             pending.append(proposal)
-        # Also check legacy: board approved but owner hasn't authorized
+        # Fallback check: board approved but owner hasn't authorized (legacy compatibility)
         elif (status == ProposalStatus.APPROVED.value or 
               (vote_result and vote_result.get("decision") == "approved")):
             if not proposal.get("owner_authorized", False):
+                # Ensure status is set to pending_approval for consistency
+                proposal["status"] = ProposalStatus.PENDING_APPROVAL.value
                 pending.append(proposal)
     
     return pending

@@ -15,6 +15,11 @@ import sys
 
 # Third-party
 import litellm
+import tiktoken
+
+# Suppress LiteLLM verbose info messages globally
+litellm_logger = logging.getLogger("LiteLLM")
+litellm_logger.setLevel(logging.ERROR)  # Only show errors, suppress INFO/WARNING
 
 # Local - models first (single source of truth)
 project_root = Path(__file__).parent.parent.parent.parent
@@ -34,6 +39,37 @@ from utilities.logger import log_event as base_log_event, get_recent_logs
 
 logger = logging.getLogger(__name__)
 
+# Rate limit protection: Track last memory call time
+_last_memory_call_time: Optional[datetime] = None
+
+# Cache memory summaries to avoid redundant calls
+_memory_cache: Dict[str, str] = {}
+
+
+def get_cached_summary_key() -> str:
+    """Generate cache key based on current hour"""
+    return datetime.now().strftime("%Y%m%d%H")  # Cache for 1 hour
+
+
+def should_skip_memory_summarization() -> bool:
+    """
+    Check if we should skip memory to preserve TPM budget.
+    Returns True if we should skip.
+    """
+    global _last_memory_call_time
+    
+    # If called within last 2 minutes, skip
+    if _last_memory_call_time:
+        time_since_last = (datetime.now() - _last_memory_call_time).total_seconds()
+        if time_since_last < 120:  # 2 minutes
+            logger.warning(
+                f"Skipping memory summarization - called {time_since_last:.0f}s ago "
+                f"(rate limit protection)"
+            )
+            return True
+    
+    return False
+
 
 def _coerce_temperature(model_name: str, requested: float) -> float:
     """
@@ -47,6 +83,26 @@ def _coerce_temperature(model_name: str, requested: float) -> float:
         )
         return 1.0
     return requested
+
+
+def count_tokens_precise(text: str, model: str = "gpt-4o") -> int:
+    """
+    Count tokens precisely using tiktoken (OpenAI's token counter).
+    
+    Args:
+        text: Text to count tokens for
+        model: Model name to use for encoding (default: gpt-4o)
+        
+    Returns:
+        Number of tokens in the text
+    """
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except Exception as e:
+        # Fallback to rough estimate if tiktoken fails
+        logger.warning(f"Tiktoken failed, using rough estimate: {e}")
+        return len(text) // 4
 
 
 def log_event(
@@ -151,7 +207,7 @@ def get_recent_events(limit: int = 100) -> List[Dict]:
         return []
 
 
-def summarize_recent_activity(events: List[Dict]) -> str:
+def summarize_recent_activity(events: List[Dict], force_refresh: bool = False) -> str:
     """
     Summarize recent board activities using LLM.
     
@@ -181,6 +237,18 @@ def summarize_recent_activity(events: List[Dict]) -> str:
         logger.warning("No events provided for summarization")
         return "No recent activity to summarize."
 
+    # Check cache first (unless force_refresh)
+    global _memory_cache
+    if not force_refresh:
+        cache_key = get_cached_summary_key()
+        if cache_key in _memory_cache:
+            logger.info("Using cached memory summary", extra={"cache_key": cache_key})
+            return _memory_cache[cache_key]
+    
+    # Rate limit protection: Skip memory if called too recently
+    if should_skip_memory_summarization():
+        return "Memory summarization skipped to preserve rate limits"
+
     settings = get_settings()
     provider_identifier = settings.provider_model_identifier("openai")
     model_name = resolve_litellm_model(provider_identifier)
@@ -200,8 +268,70 @@ def summarize_recent_activity(events: List[Dict]) -> str:
         logger.error(f"Failed to log LLM call attempt: {e}", exc_info=True)
         # Continue despite logging failure
     
-    # Prepare prompt
+    # Token counting and truncation to prevent token overflow
+    # Rough estimation: ~4 characters per token for English text
+    # Target: Keep total request under 15,000 tokens (60,000 chars)
+    # Reserve ~5,000 tokens (20,000 chars) for prompt template and output
+    # So events should be limited to ~10,000 tokens (40,000 chars) - safer for rate limits
+    # With 8 board members × 3 rounds = lots of memory calls, lower limit prevents cumulative exhaustion
+    MAX_EVENT_CHARS = 40000  # ~10,000 tokens - safer for rate limits
+    PROMPT_TEMPLATE_CHARS = 200  # Approximate size of prompt template
+    
+    # Convert events to JSON and check size
     events_text = json.dumps(events, indent=2, ensure_ascii=False)
+    total_chars = len(events_text) + PROMPT_TEMPLATE_CHARS
+    
+    # Use precise token counting (fallback to rough estimate if needed)
+    estimated_tokens = count_tokens_precise(events_text, model="gpt-4o")
+    
+    original_event_count = len(events)
+    
+    # If exceeding limits, truncate to most recent events
+    # Use character-based check for truncation (faster), but precise token count for logging
+    if len(events_text) > MAX_EVENT_CHARS:
+        logger.warning(
+            f"Event summary exceeds token limit ({estimated_tokens:.0f} tokens, {total_chars} chars). "
+            f"Truncating to most recent events.",
+            extra={
+                "original_event_count": original_event_count,
+                "estimated_tokens": estimated_tokens,
+                "total_chars": total_chars
+            }
+        )
+        
+        # Truncate events: keep most recent events that fit
+        truncated_events = []
+        current_size = 0
+        
+        # Iterate backwards (most recent first) to keep latest events
+        for event in reversed(events):
+            event_json = json.dumps(event, indent=2, ensure_ascii=False)
+            if current_size + len(event_json) + PROMPT_TEMPLATE_CHARS <= MAX_EVENT_CHARS:
+                truncated_events.insert(0, event)  # Insert at beginning to maintain order
+                current_size += len(event_json)
+            else:
+                break
+        
+        events = truncated_events
+        events_text = json.dumps(events, indent=2, ensure_ascii=False)
+        
+        # Recalculate precise token count after truncation
+        final_estimated_tokens = count_tokens_precise(events_text, model="gpt-4o")
+        
+        logger.info(
+            f"Truncated events from {original_event_count} to {len(events)} events "
+            f"({len(events_text)} chars, ~{final_estimated_tokens:.0f} tokens)",
+            extra={
+                "original_count": original_event_count,
+                "truncated_count": len(events),
+                "final_chars": len(events_text),
+                "final_estimated_tokens": final_estimated_tokens
+            }
+        )
+    else:
+        final_estimated_tokens = estimated_tokens
+    
+    # Prepare prompt
     prompt = (
         f"Summarize these board activities: {events_text}\n\n"
         f"Focus on:\n"
@@ -210,6 +340,22 @@ def summarize_recent_activity(events: List[Dict]) -> str:
         f"3. Outcomes\n"
         f"4. Reasoning\n\n"
         f"Provide a concise summary in plain text."
+    )
+    
+    # Calculate precise token count for full prompt (enhanced logging)
+    prompt_tokens = count_tokens_precise(prompt, model="gpt-4o")
+    
+    logger.info(
+        f"Memory summarization token estimate: ~{final_estimated_tokens:.0f} input tokens "
+        f"({len(events_text) + PROMPT_TEMPLATE_CHARS} chars) for {len(events)} events, "
+        f"~{prompt_tokens:.0f} total prompt tokens",
+        extra={
+            "event_count": len(events),
+            "estimated_tokens": int(final_estimated_tokens),
+            "prompt_tokens": int(prompt_tokens),
+            "char_count": len(events_text),
+            "truncated": original_event_count > len(events)
+        }
     )
     
     try:
@@ -227,21 +373,41 @@ def summarize_recent_activity(events: List[Dict]) -> str:
         
         summary = response.choices[0].message.content.strip()
         
-        # Log successful LLM call (Rule 6)
+        # Update last call time for rate limit protection
+        global _last_memory_call_time
+        _last_memory_call_time = datetime.now()
+        
+        # Cache the result before returning
+        cache_key = get_cached_summary_key()
+        _memory_cache[cache_key] = summary
+        
+        # Log successful LLM call (Rule 6) with enhanced details
         try:
             base_log_event(
                 event_type="llm_call_success",
                 data={
                     "provider": provider_identifier,
                     "purpose": "summarize_recent_activity",
-                    "response_length": len(summary)
+                    "response_length": len(summary),
+                    "input_events": len(events),
+                    "input_tokens": int(final_estimated_tokens),
+                    "prompt_tokens": int(prompt_tokens)
                 },
                 metadata={"function": "summarize_recent_activity"}
             )
         except Exception as e:
             logger.warning(f"Failed to log LLM call success: {e}")
         
-        logger.info(f"Generated activity summary: {len(summary)} characters")
+        logger.info(
+            f"Memory summarization complete: {len(summary)} char response",
+            extra={
+                "response_length": len(summary),
+                "input_events": len(events),
+                "input_tokens": int(final_estimated_tokens),
+                "prompt_tokens": int(prompt_tokens),
+                "cached": True
+            }
+        )
         return summary
         
     except Exception as e:

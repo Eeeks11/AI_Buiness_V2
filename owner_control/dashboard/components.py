@@ -90,6 +90,15 @@ def proposal_card(proposal: Mapping[str, Any]) -> None:
                     st.metric("Status", "❌ REJECTED", status_display)
                 elif status == ProposalStatus.VETOED.value:
                     st.metric("Status", "🚫 VETOED", status_display)
+                elif status == ProposalStatus.VOTING_FAILED.value:
+                    st.metric("Status", "⚠️ VOTING FAILED", status_display)
+                    # Display failure details if available
+                    failure_details = proposal.get("voting_failure_details", {})
+                    if failure_details:
+                        failed_role = failure_details.get("failed_role", "Unknown")
+                        error = failure_details.get("error", "Unknown error")
+                        st.caption(f"⚠️ Failed role: {failed_role}")
+                        st.caption(f"Error: {error[:200]}")
                 elif status == ProposalStatus.VOTING.value:
                     st.metric("Status", "🗳️ VOTING", status_display)
                 elif status == ProposalStatus.DELIBERATION.value:
@@ -285,9 +294,11 @@ def execution_log_viewer(log_entries: Sequence[Mapping[str, Any]]) -> None:
 def deliberation_viewer(deliberations: Mapping[str, Mapping[str, Any]]) -> None:
     """
     Render deliberation responses from all 8 board roles.
+    Supports both single-round and iterative multi-round deliberations.
 
     Args:
         deliberations: Dictionary mapping role names to their deliberation data.
+                      May include "_iterative" key with iterative deliberation data.
     """
     logger.info(
         "Rendering deliberation viewer",
@@ -303,6 +314,75 @@ def deliberation_viewer(deliberations: Mapping[str, Mapping[str, Any]]) -> None:
         
         if not deliberations:
             st.info("No deliberation responses available yet.")
+            return
+        
+        # Check for iterative deliberation data
+        iterative_data = deliberations.get("_iterative", {})
+        has_iterative = bool(iterative_data)
+        
+        if has_iterative:
+            rounds = iterative_data.get("rounds", [])
+            total_rounds = iterative_data.get("total_rounds", len(rounds))
+            converged = iterative_data.get("converged", False)
+            exhausted = iterative_data.get("exhausted", False)
+            position_evolution = iterative_data.get("position_evolution", {})
+            synthesis = iterative_data.get("synthesis", {})
+            
+            # Display iterative deliberation summary
+            st.markdown("### 📊 Iterative Deliberation Summary")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Rounds", total_rounds)
+            with col2:
+                status = "✅ Converged" if converged else "⏹️ Exhausted" if exhausted else "📝 Completed"
+                st.metric("Status", status)
+            with col3:
+                members_changed = len(synthesis.get("members_who_changed_position", []))
+                st.metric("Position Changes", members_changed)
+            
+            # Display synthesis
+            if synthesis:
+                with st.expander("📋 Deliberation Synthesis", expanded=True):
+                    st.write(f"**Summary:** {synthesis.get('summary', 'N/A')}")
+                    if synthesis.get("members_who_changed_position"):
+                        st.write(f"**Members who changed position:** {', '.join(synthesis['members_who_changed_position'])}")
+            
+            # Display rounds in tabs
+            st.markdown("### 🔄 Deliberation Rounds")
+            if rounds:
+                round_tabs = st.tabs([f"Round {i+1}" for i in range(len(rounds))])
+                for round_idx, (round_tab, round_responses) in enumerate(zip(round_tabs, rounds)):
+                    with round_tab:
+                        st.caption(f"Round {round_idx + 1} of {total_rounds}")
+                        if round_idx > 0:
+                            # Show position evolution for this round
+                            prev_round = rounds[round_idx - 1]
+                            for role in round_responses.keys():
+                                if role in position_evolution and len(position_evolution[role]) > round_idx:
+                                    prev_pos = position_evolution[role][round_idx - 1] if round_idx > 0 else "N/A"
+                                    curr_pos = position_evolution[role][round_idx]
+                                    if prev_pos != curr_pos:
+                                        st.info(f"🔄 **{role}** changed position: {prev_pos} → {curr_pos}")
+                        
+                        # Display each role's response in this round
+                        for role, response in round_responses.items():
+                            with st.expander(f"**{role}**"):
+                                st.text_area(
+                                    f"{role} Response",
+                                    value=response,
+                                    height=150,
+                                    disabled=True,
+                                    key=f"round_{round_idx}_{role}"
+                                )
+            
+            st.divider()
+        
+        # Filter out iterative data for role-based display
+        role_deliberations = {k: v for k, v in deliberations.items() if k != "_iterative"}
+        
+        # If we have iterative data, we've already displayed it above
+        # Now show final round summary by role category
+        if not role_deliberations:
             return
         
         # Load role configs for categorization
@@ -328,7 +408,7 @@ def deliberation_viewer(deliberations: Mapping[str, Mapping[str, Any]]) -> None:
         advisory_deliberations = {}
         documentation_deliberations = {}
         
-        for role, deliberation_data in deliberations.items():
+        for role, deliberation_data in role_deliberations.items():
             role_upper = role.upper()
             role_config = role_configs.get(role_upper, {})
             role_name = role_config.get("name", role)
